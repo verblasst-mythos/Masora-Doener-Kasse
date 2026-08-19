@@ -455,61 +455,44 @@ const App = {
     document.title = name + " — Kasse";
   },
 
-  async afterLogin() {
-    $("#user-name").textContent = State.user.name;
-    
-    // Rollen-Anzeige
-    const roleNames = {
-      admin: "Admin",
-      service: "Serviceleitung",
-      lager: "Lager",
-      kasse: "Kasse",
-    };
-    $("#user-role").textContent = roleNames[State.user.role] || "Kasse";
-    
-    // Rolle merken
-    const role = State.user.role;
-    
-    // Navigation basierend auf Rolle anzeigen/ausblenden
-    // Admin-Button: nur für admin
-    const navAdmin = $("#nav-admin");
-    if (navAdmin) {
-      navAdmin.classList.toggle("hidden", role !== "admin");
-    }
-    
-    // Lager-Button: nur für admin, lager
-    const navLager = $("#nav-lager");
-    if (navLager) {
-      navLager.classList.toggle("hidden", !["admin", "lager"].includes(role));
-    }
-    
-    // Dienstzeiten-Button: nur für admin, service
-    const navDienst = $("#nav-dienst");
-    if (navDienst) {
-      navDienst.classList.toggle("hidden", !["admin", "service"].includes(role));
-    }
-    
-    // Produkte-Button: nur für admin, service, lager
-    const navProdukte = $("#nav-produkte");
-    if (navProdukte) {
-      navProdukte.classList.toggle("hidden", !["admin", "service", "lager"].includes(role));
-    }
-    
-    try {
-      const [products, discounts] = await Promise.all([
-        DB.listProducts(true),
-        DB.listDiscounts(true),
-      ]);
-      State.products = products;
-      State.discounts = discounts;
-      await Duty.load();
-      Duty.startSession();
-      Kasse.render();
-      this.go("kasse");
-    } catch (err) {
-      fail(err);
-    }
-  },
+async afterLogin() {
+  $("#user-name").textContent = State.user.name;
+  
+  // Rollen-Anzeige
+  const roleNames = {
+    admin: "Admin",
+    service: "Serviceleitung",
+    lager: "Lager",
+    kasse: "Kasse",
+  };
+  $("#user-role").textContent = roleNames[State.user.role] || "Kasse";
+  
+  // Rolle speichern für Admin-Tabs
+  State.userRole = State.user.role;
+  
+  // Rolle merken
+  const role = State.user.role;
+  
+  // Verwaltung-Button: nur für admin, service, lager
+  const navAdmin = $("#nav-admin");
+  if (navAdmin) {
+    navAdmin.classList.toggle("hidden", !["admin", "service", "lager"].includes(role));
+  }
+  
+  try {
+    const [products, discounts] = await Promise.all([
+      DB.listProducts(true),
+      DB.listDiscounts(true),
+    ]);
+    State.products = products;
+    State.discounts = discounts;
+    await Duty.load();
+    Duty.startSession();
+    Kasse.render();
+    this.go("kasse");
+  } catch (err) {
+    fail(err);
+  }
 
   async logout({ auto = false } = {}) {
     // Beim manuellen Abmelden fragen, ob die Schicht beendet werden soll.
