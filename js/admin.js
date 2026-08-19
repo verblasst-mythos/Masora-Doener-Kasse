@@ -14,9 +14,36 @@ const Admin = {
   shiftRange: 7, // Tage für die Dienstzeiten-Übersicht
 
   open() {
-    this.paintTabs();
-    this.loadTab();
-  },
+  // Tabs basierend auf Rolle ein-/ausblenden
+  const role = State.userRole || State.user?.role || 'kasse';
+  
+  // Welche Tabs darf welche Rolle sehen?
+  const allowedTabs = {
+    produkte: ['admin', 'service', 'lager'],
+    lager: ['admin', 'lager'],
+    rabatte: ['admin'],
+    kooperationen: ['admin'],
+    personal: ['admin'],
+    dienstzeiten: ['admin', 'service'],
+    einstellungen: ['admin'],
+    abschluss: ['admin'],
+  };
+  
+  // Tabs ein-/ausblenden
+  $$('#admin-subnav button').forEach(btn => {
+    const tab = btn.dataset.tab;
+    const allowed = allowedTabs[tab] || ['admin'];
+    btn.classList.toggle('hidden', !allowed.includes(role));
+  });
+  
+  // Ersten sichtbaren Tab aktivieren
+  const firstVisible = $('#admin-subnav button:not(.hidden)');
+  if (firstVisible) {
+    firstVisible.click();
+  }
+  
+  // ... Rest der Funktion (falls vorhanden)
+}
 
   paintTabs() {
     $$("#admin-subnav button").forEach((b) =>
