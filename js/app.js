@@ -547,6 +547,63 @@ const App = {
     );
   },
 };
+const DISCORD_WORKER_URL =
+  "https://masora-doener-kasse1.finnwoschech.workers.dev/receipt";
+
+async function sendReceiptToDiscord(order) {
+  if (!order) {
+    throw new Error("Keine Bestellung zum Senden vorhanden.");
+  }
+
+  const items = Array.isArray(order.items)
+    ? order.items
+    : Array.isArray(order.products)
+      ? order.products
+      : State.cart;
+
+  const response = await fetch(DISCORD_WORKER_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      orderId: order.id || order.order_id || order.number || "Unbekannt",
+
+      customerName:
+        order.customerName ||
+        order.customer_name ||
+        order.customer ||
+        "Gast",
+
+      total:
+        order.total ||
+        order.total_amount ||
+        order.amount ||
+        order.grand_total ||
+        0,
+
+      currency: order.currency || "EUR",
+
+      staffName: State.user?.name || "Unbekannt",
+
+      items: items,
+    }),
+  });
+
+  const result = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(
+      result?.error ||
+        `Discord-Quittung konnte nicht gesendet werden (${response.status}).`,
+    );
+  }
+
+  return result;
+}
+
+window.sendReceiptToDiscord = sendReceiptToDiscord;
+
 
 window.App = App;
 window.State = State;
