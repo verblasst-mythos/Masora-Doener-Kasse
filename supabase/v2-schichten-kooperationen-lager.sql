@@ -1,395 +1,649 @@
--- =========================================================
---  Masora Döner Kasse — Update v2
---  Schichten (Ein-/Ausstempeln), Kooperationen, Lager
---
---  Einspielen: Supabase Dashboard -> SQL Editor -> alles
---  hier einfügen -> "Run". Kann mehrfach laufen.
--- =========================================================
+/* ==========================================================================
+   App-Kern: State, Hilfsfunktionen, Login, Navigation
+   ========================================================================== */
+"use strict";
 
--- ---------------------------------------------------------
--- 1. Lagerfelder an den Produkten
--- ---------------------------------------------------------
-alter table public.products add column if not exists stock       numeric(12,2) not null default 0;
-alter table public.products add column if not exists min_stock   numeric(12,2) not null default 0;
-alter table public.products add column if not exists track_stock boolean       not null default true;
+const State = {
+  user: null,
+  products: [],
+  discounts: [],
+  staff: [],
+  settings: null,
+  cart: [],
+  discountId: "",
+  coop: null, // aktivierte Kooperation (Rabatt mit Codewort)
+  shift: null, // laufende Schicht, wenn eingestempelt
+  category: null,
+  view: "kasse",
+};
 
--- ---------------------------------------------------------
--- 2. Schichten
--- ---------------------------------------------------------
-create table if not exists public.shifts (
-  id         uuid primary key default gen_random_uuid(),
-  staff_id   uuid references public.staff(id) on delete set null,
-  staff_name text not null,
-  started_at timestamptz not null default now(),
-  ended_at   timestamptz,
-  ended_auto boolean not null default false,
-  created_at timestamptz not null default now()
-);
-create index if not exists shifts_staff_started_idx on public.shifts (staff_id, started_at desc);
-create index if not exists shifts_started_idx       on public.shifts (started_at desc);
+/** Nach dieser Zeit wird die Kasse automatisch abgemeldet. */
+const SESSION_MINUTES = 60;
 
--- ---------------------------------------------------------
--- 3. Kooperationen (Rabatt nur mit Codewort)
--- ---------------------------------------------------------
-create table if not exists public.cooperations (
-  id         uuid primary key default gen_random_uuid(),
-  name       text not null,
-  kind       text not null default 'percent' check (kind in ('percent', 'fixed')),
-  value      numeric(10,2) not null default 0,
-  code       text not null,
-  is_active  boolean not null default true,
-  created_at timestamptz not null default now()
-);
-create unique index if not exists cooperations_code_idx on public.cooperations (lower(code));
+/* ---------- Hilfsfunktionen ---------- */
 
--- ---------------------------------------------------------
--- 4. Lagerbewegungen
--- ---------------------------------------------------------
-create table if not exists public.stock_moves (
-  id           uuid primary key default gen_random_uuid(),
-  product_id   uuid references public.products(id) on delete set null,
-  product_name text not null,
-  delta        numeric(12,2) not null,
-  reason       text not null default 'korrektur'
-               check (reason in ('verkauf', 'storno', 'wareneingang', 'korrektur', 'schwund')),
-  order_id     uuid,
-  staff_name   text,
-  created_at   timestamptz not null default now()
-);
-create index if not exists stock_moves_created_idx on public.stock_moves (created_at desc);
-create index if not exists stock_moves_product_idx on public.stock_moves (product_id, created_at desc);
+const euro = new Intl.NumberFormat("de-DE", {
+  style: "currency",
+  currency: "EUR",
+});
+const money = (n) => euro.format(Number(n) || 0);
+const num = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
--- ---------------------------------------------------------
--- 5. Bestellungen erweitern
--- ---------------------------------------------------------
-alter table public.orders add column if not exists staff_id        uuid references public.staff(id) on delete set null;
-alter table public.orders add column if not exists shift_id        uuid references public.shifts(id) on delete set null;
-alter table public.orders add column if not exists discount_source text not null default 'rabatt';
-create index if not exists orders_staff_created_idx on public.orders (staff_id, created_at desc);
+function fmtTime(iso) {
+  return new Date(iso).toLocaleTimeString("de-DE", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+/** Sekunden als "1 Std 05 Min" bzw. "12 Min". */
+function fmtDuration(seconds) {
+  const s = Math.max(0, Math.round(Number(seconds) || 0));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  if (h > 0) return `${h} Std ${String(m).padStart(2, "0")} Min`;
+  return `${m} Min`;
+}
 
--- Bestehende Bestellungen den Mitarbeitern zuordnen (über den Namen)
-update public.orders o
-   set staff_id = s.id
-  from public.staff s
- where o.staff_id is null
-   and o.staff_name = s.name;
+/** Sekunden als "59:12" für den Countdown. */
+function fmtClock(seconds) {
+  const s = Math.max(0, Math.round(Number(seconds) || 0));
+  return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+}
 
--- ---------------------------------------------------------
--- 6. Zugriffsregeln
--- ---------------------------------------------------------
-alter table public.shifts       enable row level security;
-alter table public.cooperations enable row level security;
-alter table public.stock_moves  enable row level security;
+function fmtDateTime(iso) {
+  return new Date(iso).toLocaleString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+function esc(s) {
+  return String(s ?? "").replace(
+    /[&<>"']/g,
+    (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
+        c
+      ],
+  );
+}
+function $(sel, root = document) {
+  return root.querySelector(sel);
+}
+function $$(sel, root = document) {
+  return Array.from(root.querySelectorAll(sel));
+}
 
-drop policy if exists shifts_anon_all on public.shifts;
-create policy shifts_anon_all on public.shifts
-  for all to anon using (true) with check (true);
+function toast(message, kind = "") {
+  const wrap = $("#toasts");
+  const el = document.createElement("div");
+  el.className = "toast" + (kind ? " " + kind : "");
+  el.textContent = message;
+  wrap.appendChild(el);
+  setTimeout(() => el.remove(), 3200);
+}
 
-drop policy if exists cooperations_anon_all on public.cooperations;
-create policy cooperations_anon_all on public.cooperations
-  for all to anon using (true) with check (true);
+function fail(err) {
+  console.error(err);
+  toast(
+    err && err.message ? err.message : "Ein Fehler ist aufgetreten",
+    "error",
+  );
+}
 
-drop policy if exists stock_moves_anon_all on public.stock_moves;
-create policy stock_moves_anon_all on public.stock_moves
-  for all to anon using (true) with check (true);
+/* ---------- Modal ---------- */
 
--- ---------------------------------------------------------
--- 7. Bestellung abschliessen (mit Lagerabzug, in einem Schritt)
--- ---------------------------------------------------------
-create or replace function public.place_order(
-  p_items           jsonb,
-  p_subtotal        numeric,
-  p_discount_name   text,
-  p_discount_amount numeric,
-  p_discount_source text,
-  p_total           numeric,
-  p_payment_method  text,
-  p_cash_given      numeric,
-  p_change_due      numeric,
-  p_staff_id        uuid,
-  p_staff_name      text,
-  p_shift_id        uuid,
-  p_note            text
-) returns public.orders
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_order public.orders;
-  v_item  jsonb;
-  v_pid   uuid;
-  v_qty   numeric;
-  v_stock numeric;
-  v_track boolean;
-  v_pname text;
-begin
-  -- Bestand prüfen und Zeilen sperren
-  for v_item in select value from jsonb_array_elements(p_items) loop
-    v_pid := nullif(coalesce(v_item->>'product_id', v_item->>'id'), '')::uuid;
-    v_qty := coalesce((v_item->>'qty')::numeric, 0);
-    if v_pid is null or v_qty <= 0 then
-      continue;
-    end if;
+let modalKeyHandler = null;
 
-    select p.stock, p.track_stock, p.name
-      into v_stock, v_track, v_pname
-      from public.products p
-     where p.id = v_pid
-       for update;
+function openModal({
+  title,
+  bodyHTML,
+  footHTML = "",
+  onMount = null,
+  wide = false,
+}) {
+  closeModal();
+  const overlay = document.createElement("div");
+  overlay.className = "overlay";
+  overlay.id = "modal-overlay";
+  overlay.innerHTML = `
+    <div class="modal" role="dialog" aria-modal="true" aria-label="${esc(title)}"
+         ${wide ? 'style="max-width:720px"' : ""}>
+      <div class="modal-head">
+        <h2 class="modal-title">${esc(title)}</h2>
+        <button class="icon-btn" data-close aria-label="Schließen">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">${bodyHTML}</div>
+      ${footHTML ? `<div class="modal-foot">${footHTML}</div>` : ""}
+    </div>`;
+  document.body.appendChild(overlay);
 
-    if not found then
-      continue;
-    end if;
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay || e.target.closest("[data-close]")) closeModal();
+  });
+  modalKeyHandler = (e) => {
+    if (e.key === "Escape") closeModal();
+  };
+  document.addEventListener("keydown", modalKeyHandler);
 
-    if v_track and v_stock < v_qty then
-      raise exception 'LAGER: % — nur noch % auf Lager, benoetigt %', v_pname, v_stock, v_qty;
-    end if;
-  end loop;
+  if (onMount) onMount(overlay);
+  return overlay;
+}
 
-  -- Bestellung schreiben
-  insert into public.orders (
-    items, subtotal, discount_name, discount_amount, discount_source, total,
-    payment_method, cash_given, change_due, staff_id, staff_name, shift_id, note
-  ) values (
-    p_items,
-    p_subtotal,
-    nullif(p_discount_name, ''),
-    coalesce(p_discount_amount, 0),
-    coalesce(nullif(p_discount_source, ''), 'rabatt'),
-    p_total,
-    p_payment_method,
-    p_cash_given,
-    p_change_due,
-    p_staff_id,
-    p_staff_name,
-    p_shift_id,
-    nullif(p_note, '')
-  ) returning * into v_order;
+function closeModal() {
+  const el = $("#modal-overlay");
+  if (el) el.remove();
+  if (modalKeyHandler) {
+    document.removeEventListener("keydown", modalKeyHandler);
+    modalKeyHandler = null;
+  }
+}
 
-  -- Lager abbuchen und Bewegung protokollieren
-  for v_item in select value from jsonb_array_elements(p_items) loop
-    v_pid := nullif(coalesce(v_item->>'product_id', v_item->>'id'), '')::uuid;
-    v_qty := coalesce((v_item->>'qty')::numeric, 0);
-    if v_pid is null or v_qty <= 0 then
-      continue;
-    end if;
+/* ---------- Bestätigung ---------- */
 
-    v_pname := null;
-    update public.products
-       set stock = stock - v_qty
-     where id = v_pid
-       and track_stock = true
-    returning name into v_pname;
+function confirmDialog(title, text, confirmLabel = "Bestätigen") {
+  return new Promise((resolve) => {
+    openModal({
+      title,
+      bodyHTML: `<p style="font-size:var(--text-sm)">${esc(text)}</p>`,
+      footHTML: `
+        <button class="btn" data-close>Abbrechen</button>
+        <button class="btn btn-primary" data-yes>${esc(confirmLabel)}</button>`,
+      onMount(root) {
+        $("[data-yes]", root).addEventListener("click", () => {
+          closeModal();
+          resolve(true);
+        });
+        root.addEventListener("click", (e) => {
+          if (e.target === root || e.target.closest("[data-close]"))
+            resolve(false);
+        });
+      },
+    });
+  });
+}
 
-    if v_pname is not null then
-      insert into public.stock_moves (product_id, product_name, delta, reason, order_id, staff_name)
-      values (v_pid, v_pname, -v_qty, 'verkauf', v_order.id, p_staff_name);
-    end if;
-  end loop;
+/* ==========================================================================
+   Login (PIN)
+   ========================================================================== */
 
-  return v_order;
-end;
-$$;
+const Login = {
+  pin: "",
 
--- ---------------------------------------------------------
--- 8. Storno (bucht das Lager zurück)
--- ---------------------------------------------------------
-create or replace function public.cancel_order(
-  p_order_id   uuid,
-  p_staff_name text
-) returns public.orders
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_order public.orders;
-  v_item  jsonb;
-  v_pid   uuid;
-  v_qty   numeric;
-  v_pname text;
-begin
-  select * into v_order from public.orders where id = p_order_id for update;
-  if not found then
-    raise exception 'Bestellung nicht gefunden';
-  end if;
-  if v_order.status = 'storniert' then
-    return v_order;
-  end if;
+  show() {
+    $("#login").classList.remove("hidden");
+    $("#app").classList.add("hidden");
+    this.pin = "";
+    this.paint();
+  },
 
-  update public.orders
-     set status = 'storniert'
-   where id = p_order_id
-  returning * into v_order;
+  hide() {
+    $("#login").classList.add("hidden");
+    $("#app").classList.remove("hidden");
+  },
 
-  for v_item in select value from jsonb_array_elements(v_order.items) loop
-    v_pid := nullif(coalesce(v_item->>'product_id', v_item->>'id'), '')::uuid;
-    v_qty := coalesce((v_item->>'qty')::numeric, 0);
-    if v_pid is null or v_qty <= 0 then
-      continue;
-    end if;
+  paint() {
+    $$("#pin-display .pin-dot").forEach((d, i) => {
+      d.classList.toggle("filled", i < this.pin.length);
+    });
+  },
 
-    v_pname := null;
-    update public.products
-       set stock = stock + v_qty
-     where id = v_pid
-       and track_stock = true
-    returning name into v_pname;
+  press(key) {
+    const errEl = $("#login-error");
+    errEl.textContent = "";
+    if (key === "del") {
+      this.pin = this.pin.slice(0, -1);
+    } else if (key === "clear") {
+      this.pin = "";
+    } else if (this.pin.length < 4) {
+      this.pin += key;
+    }
+    this.paint();
+    if (this.pin.length === 4) setTimeout(() => this.submit(), 120);
+  },
 
-    if v_pname is not null then
-      insert into public.stock_moves (product_id, product_name, delta, reason, order_id, staff_name)
-      values (v_pid, v_pname, v_qty, 'storno', p_order_id, p_staff_name);
-    end if;
-  end loop;
+  async submit() {
+    const errEl = $("#login-error");
+    const match = State.staff.find((s) => s.pin === this.pin && s.is_active);
+    if (!match) {
+      errEl.textContent = "PIN nicht erkannt";
+      this.pin = "";
+      this.paint();
+      return;
+    }
+    State.user = match;
+    this.hide();
+    await App.afterLogin();
+  },
 
-  return v_order;
-end;
-$$;
+  bind() {
+    $("#pin-pad").addEventListener("click", (e) => {
+      const b = e.target.closest("button[data-key]");
+      if (b) this.press(b.dataset.key);
+    });
+    document.addEventListener("keydown", (e) => {
+      if ($("#login").classList.contains("hidden")) return;
+      if (/^[0-9]$/.test(e.key)) this.press(e.key);
+      else if (e.key === "Backspace") this.press("del");
+    });
+  },
+};
 
--- ---------------------------------------------------------
--- 9. Bestand buchen (Wareneingang, Korrektur, Schwund)
--- ---------------------------------------------------------
-create or replace function public.adjust_stock(
-  p_product_id uuid,
-  p_delta      numeric,
-  p_reason     text,
-  p_staff_name text
-) returns public.products
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_product public.products;
-begin
-  update public.products
-     set stock = stock + p_delta
-   where id = p_product_id
-  returning * into v_product;
+/* ==========================================================================
+   Dienst: Ein- und Ausstempeln, Sitzungsdauer, Auto-Abmeldung
+   ========================================================================== */
 
-  if not found then
-    raise exception 'Produkt nicht gefunden';
-  end if;
+const Duty = {
+  deadline: 0,
+  ticker: null,
+  warned: false,
 
-  insert into public.stock_moves (product_id, product_name, delta, reason, staff_name)
-  values (p_product_id, v_product.name, p_delta,
-          coalesce(nullif(p_reason, ''), 'korrektur'), p_staff_name);
+  /** Ist der angemeldete Mitarbeiter gerade im Dienst? */
+  isOn() {
+    return !!(State.shift && !State.shift.ended_at);
+  },
 
-  return v_product;
-end;
-$$;
+  /** Lädt eine eventuell noch offene Schicht nach dem Anmelden. */
+  async load() {
+    State.shift = null;
+    if (!State.user) return;
+    try {
+      State.shift = await DB.openShift(State.user.id);
+      // Wurde die Kasse vor kurzem automatisch abgemeldet?
+      // Dann die Schicht fortsetzen statt sie zu zerstückeln.
+      if (!State.shift) {
+        const resumed = await DB.resumeShift(State.user.id);
+        if (resumed) {
+          State.shift = resumed;
+          toast("Schicht fortgesetzt — du bist wieder im Dienst");
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    }
+    this.paint();
+  },
 
--- ---------------------------------------------------------
--- 10. Einstempeln / Ausstempeln / Schicht fortsetzen
--- ---------------------------------------------------------
-create or replace function public.clock_in(
-  p_staff_id   uuid,
-  p_staff_name text
-) returns public.shifts
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_shift public.shifts;
-begin
-  -- Läuft schon eine Schicht? Dann diese zurückgeben.
-  select * into v_shift
-    from public.shifts
-   where staff_id = p_staff_id
-     and ended_at is null
-   order by started_at desc
-   limit 1;
-  if found then
-    return v_shift;
-  end if;
+  async clockIn() {
+    if (!State.user) return;
+    if (this.isOn()) return;
+    try {
+      State.shift = await DB.clockIn(State.user.id, State.user.name);
+      this.paint();
+      toast(`Eingestempelt um ${fmtTime(State.shift.started_at)}`);
+    } catch (err) {
+      fail(err);
+    }
+  },
 
-  insert into public.shifts (staff_id, staff_name)
-  values (p_staff_id, p_staff_name)
-  returning * into v_shift;
+  async clockOut(auto = false) {
+    if (!this.isOn()) return null;
+    const shiftId = State.shift.id;
+    const startedAt = State.shift.started_at;
+    try {
+      await DB.clockOut(shiftId, auto);
+    } catch (err) {
+      console.error(err);
+      if (!auto) {
+        fail(err);
+        return null;
+      }
+    }
+    State.shift = null;
+    this.paint();
+    const worked = fmtDuration(
+      (Date.now() - new Date(startedAt).getTime()) / 1000,
+    );
+    if (!auto) toast(`Ausgestempelt — Dienstzeit ${worked}`);
+    return worked;
+  },
 
-  return v_shift;
-end;
-$$;
+  /* ---------- Anzeige ---------- */
 
-create or replace function public.clock_out(
-  p_shift_id uuid,
-  p_auto     boolean
-) returns public.shifts
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_shift public.shifts;
-begin
-  update public.shifts
-     set ended_at   = now(),
-         ended_auto = coalesce(p_auto, false)
-   where id = p_shift_id
-     and ended_at is null
-  returning * into v_shift;
+  paint() {
+    const chip = $("#duty-chip");
+    const btn = $("#duty-toggle");
+    if (!chip || !btn) return;
 
-  if not found then
-    select * into v_shift from public.shifts where id = p_shift_id;
-  end if;
+    const on = this.isOn();
+    chip.classList.toggle("on", on);
+    chip.classList.toggle("off", !on);
+    $("#duty-banner")?.classList.toggle("hidden", on);
 
-  return v_shift;
-end;
-$$;
+    if (on) {
+      const secs =
+        (Date.now() - new Date(State.shift.started_at).getTime()) / 1000;
+      $("#duty-state").textContent = "Im Dienst";
+      $("#duty-since").textContent =
+        `seit ${fmtTime(State.shift.started_at)} · ${fmtDuration(secs)}`;
+      btn.textContent = "Ausstempeln";
+      btn.classList.remove("btn-primary");
+    } else {
+      $("#duty-state").textContent = "Nicht im Dienst";
+      $("#duty-since").textContent = "Zum Kassieren bitte einstempeln";
+      btn.textContent = "Einstempeln";
+      btn.classList.add("btn-primary");
+    }
+  },
 
--- Nach automatischer Abmeldung: Schicht innerhalb von 15 Minuten
--- wieder aufnehmen, damit die Dienstzeit nicht zerstückelt wird.
-create or replace function public.resume_shift(
-  p_staff_id uuid
-) returns public.shifts
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_shift public.shifts;
-begin
-  select * into v_shift
-    from public.shifts
-   where staff_id = p_staff_id
-     and ended_auto = true
-     and ended_at > now() - interval '15 minutes'
-   order by ended_at desc
-   limit 1;
+  /* ---------- Sitzung / Auto-Abmeldung ---------- */
 
-  if not found then
-    return null;
-  end if;
+  startSession() {
+    this.stopSession();
+    this.warned = false;
+    this.deadline = Date.now() + SESSION_MINUTES * 60 * 1000;
+    this.ticker = setInterval(() => this.tick(), 1000);
+    this.tick();
+  },
 
-  update public.shifts
-     set ended_at = null, ended_auto = false
-   where id = v_shift.id
-  returning * into v_shift;
+  stopSession() {
+    if (this.ticker) clearInterval(this.ticker);
+    this.ticker = null;
+  },
 
-  return v_shift;
-end;
-$$;
+  tick() {
+    const left = Math.max(0, (this.deadline - Date.now()) / 1000);
+    const el = $("#session-left");
+    if (el) {
+      el.textContent = fmtClock(left);
+      el.classList.toggle("warn", left <= 300);
+    }
+    if (this.isOn()) this.paint();
 
--- ---------------------------------------------------------
--- 11. Ausführrechte
--- ---------------------------------------------------------
-grant execute on function public.place_order(jsonb, numeric, text, numeric, text, numeric, text, numeric, numeric, uuid, text, uuid, text) to anon, authenticated;
-grant execute on function public.cancel_order(uuid, text)                        to anon, authenticated;
-grant execute on function public.adjust_stock(uuid, numeric, text, text)         to anon, authenticated;
-grant execute on function public.clock_in(uuid, text)                            to anon, authenticated;
-grant execute on function public.clock_out(uuid, boolean)                        to anon, authenticated;
-grant execute on function public.resume_shift(uuid)                              to anon, authenticated;
+    if (left <= 300 && !this.warned) {
+      this.warned = true;
+      toast("Die Kasse meldet sich in 5 Minuten automatisch ab", "error");
+    }
+    if (left <= 0) {
+      this.stopSession();
+      this.autoLogout();
+    }
+  },
 
--- ---------------------------------------------------------
--- 12. Startbestände und eine Beispiel-Kooperation
--- ---------------------------------------------------------
-update public.products
-   set stock     = case when category = 'Getränke' then 48 else 40 end,
-       min_stock = case when category = 'Getränke' then 12 else 10 end
- where stock = 0;
+  async autoLogout() {
+    const name = State.user?.name || "";
+    const worked = await this.clockOut(true);
+    await App.logout({ auto: true });
+    $("#login-error").textContent = worked
+      ? `${name} nach ${SESSION_MINUTES} Minuten automatisch abgemeldet · Dienstzeit ${worked}`
+      : `Nach ${SESSION_MINUTES} Minuten automatisch abgemeldet`;
+  },
 
-insert into public.cooperations (name, kind, value, code, is_active)
-select 'Lieferdienst Partner', 'percent', 15, 'PARTNER15', true
-where not exists (select 1 from public.cooperations where lower(code) = 'partner15');
+  /**
+   * Prüft vor dem Kassieren, ob der Mitarbeiter im Dienst ist.
+   * Ist er es nicht, kommt ein Hinweis mit direkter Einstempel-Taste.
+   */
+  requireDuty() {
+    if (this.isOn()) return true;
+    openModal({
+      title: "Du bist nicht im Dienst",
+      bodyHTML: `
+        <p style="font-size:var(--text-sm)">
+          Bevor du eine Bestellung kassieren kannst, musst du dich einstempeln.
+          So wird der Umsatz dir zugeordnet und deine Dienstzeit erfasst.
+        </p>
+        <p class="muted" style="font-size:var(--text-sm);margin-top:var(--space-3)">
+          Der Warenkorb bleibt erhalten.
+        </p>`,
+      footHTML: `
+        <button class="btn" data-close>Abbrechen</button>
+        <button class="btn btn-primary" id="duty-now">Jetzt einstempeln</button>`,
+      onMount: (root) => {
+        $("#duty-now", root).addEventListener("click", async () => {
+          closeModal();
+          await this.clockIn();
+        });
+      },
+    });
+    return false;
+  },
+
+  bind() {
+    $("#duty-toggle").addEventListener("click", async () => {
+      if (this.isOn()) {
+        const ok = await confirmDialog(
+          "Dienst beenden?",
+          "Du wirst ausgestempelt. Zum Kassieren musst du dich danach wieder einstempeln.",
+          "Ausstempeln",
+        );
+        if (ok) await this.clockOut(false);
+      } else {
+        await this.clockIn();
+      }
+    });
+  },
+};
+
+/* ==========================================================================
+   App
+   ========================================================================== */
+
+const App = {
+  async boot() {
+    this.bindTheme();
+    Login.bind();
+    this.bindNav();
+    Duty.bind();
+
+    try {
+      const [staff, settings] = await Promise.all([
+        DB.listStaff(true),
+        DB.getSettings(),
+      ]);
+      State.staff = staff;
+      State.settings = settings;
+      this.paintBrand();
+      Login.show();
+      const hint = $("#login-hint");
+      if (!staff.length) {
+        hint.textContent =
+          "Kein Personal angelegt. Bitte in der Datenbank einen PIN hinterlegen.";
+      }
+    } catch (err) {
+      fail(err);
+      $("#login-error").textContent = "Keine Verbindung zur Datenbank";
+    }
+  },
+
+  paintBrand() {
+    const name = State.settings?.shop_name || "Masora Döner";
+    $$(".brand-name").forEach((el) => (el.textContent = name));
+    document.title = name + " — Kasse";
+  },
+
+  async afterLogin() {
+    $("#user-name").textContent = State.user.name;
+    
+    // Rollen-Anzeige
+    const roleNames = {
+      admin: "Admin",
+      service: "Serviceleitung",
+      lager: "Lager",
+      kasse: "Kasse",
+    };
+    $("#user-role").textContent = roleNames[State.user.role] || "Kasse";
+    
+    // Rolle merken
+    const role = State.user.role;
+    
+    // Navigation basierend auf Rolle anzeigen/ausblenden
+    // Admin-Button: nur für admin
+    const navAdmin = $("#nav-admin");
+    if (navAdmin) {
+      navAdmin.classList.toggle("hidden", role !== "admin");
+    }
+    
+    // Lager-Button: nur für admin, lager
+    const navLager = $("#nav-lager");
+    if (navLager) {
+      navLager.classList.toggle("hidden", !["admin", "lager"].includes(role));
+    }
+    
+    // Dienstzeiten-Button: nur für admin, service
+    const navDienst = $("#nav-dienst");
+    if (navDienst) {
+      navDienst.classList.toggle("hidden", !["admin", "service"].includes(role));
+    }
+    
+    // Produkte-Button: nur für admin, service, lager
+    const navProdukte = $("#nav-produkte");
+    if (navProdukte) {
+      navProdukte.classList.toggle("hidden", !["admin", "service", "lager"].includes(role));
+    }
+    
+    try {
+      const [products, discounts] = await Promise.all([
+        DB.listProducts(true),
+        DB.listDiscounts(true),
+      ]);
+      State.products = products;
+      State.discounts = discounts;
+      await Duty.load();
+      Duty.startSession();
+      Kasse.render();
+      this.go("kasse");
+    } catch (err) {
+      fail(err);
+    }
+  },
+
+  async logout({ auto = false } = {}) {
+    // Beim manuellen Abmelden fragen, ob die Schicht beendet werden soll.
+    if (!auto && Duty.isOn()) {
+      const ok = await confirmDialog(
+        "Abmelden und ausstempeln?",
+        `Du bist noch im Dienst. Beim Abmelden wirst du ausgestempelt.`,
+        "Abmelden",
+      );
+      if (!ok) return;
+      await Duty.clockOut(false);
+    }
+    Duty.stopSession();
+    State.user = null;
+    State.shift = null;
+    State.cart = [];
+    State.discountId = "";
+    State.coop = null;
+    closeModal();
+    Login.show();
+  },
+
+  bindNav() {
+    $("#nav").addEventListener("click", (e) => {
+      const b = e.target.closest("button[data-view]");
+      if (b) this.go(b.dataset.view);
+    });
+    $("#logout").addEventListener("click", () => this.logout());
+    $("#duty-banner-btn").addEventListener("click", () => Duty.clockIn());
+  },
+
+  go(view) {
+    State.view = view;
+    $$("#nav button[data-view]").forEach((b) => {
+      b.setAttribute("aria-current", String(b.dataset.view === view));
+    });
+    $$(".view").forEach((v) =>
+      v.classList.toggle("hidden", v.dataset.viewPanel !== view),
+    );
+    if (view === "bestellungen") Orders.load();
+    if (view === "verwaltung") Admin.open();
+  },
+
+  bindTheme() {
+    const root = document.documentElement;
+    let mode = matchMedia("(prefers-color-scheme: light)").matches
+      ? "light"
+      : "dark";
+    const paint = () => {
+      root.setAttribute("data-theme", mode);
+      $$("[data-theme-toggle]").forEach((t) => {
+        t.setAttribute(
+          "aria-label",
+          mode === "dark"
+            ? "Zu hellem Design wechseln"
+            : "Zu dunklem Design wechseln",
+        );
+        t.innerHTML =
+          mode === "dark"
+            ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M2 12h2M20 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/></svg>'
+            : '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg>';
+      });
+    };
+    paint();
+    $$("[data-theme-toggle]").forEach((t) =>
+      t.addEventListener("click", () => {
+        mode = mode === "dark" ? "light" : "dark";
+        paint();
+      }),
+    );
+  },
+};
+
+/* ==========================================================================
+   Discord-Quittung über Cloudflare Worker
+   ========================================================================== */
+
+const DISCORD_WORKER_URL =
+  "https://masora-doener-kasse-worker.finnwoschech.workers.dev/receipt";
+
+async function sendReceiptToDiscord(order) {
+  if (!order) {
+    throw new Error("Keine Bestellung zum Senden vorhanden.");
+  }
+
+  const items = Array.isArray(order.items)
+    ? order.items
+    : Array.isArray(order.products)
+      ? order.products
+      : State.cart;
+
+  const response = await fetch(DISCORD_WORKER_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      orderId: order.id || order.order_id || order.number || "Unbekannt",
+
+      customerName:
+        order.customerName ||
+        order.customer_name ||
+        order.customer ||
+        "Gast",
+
+      total:
+        order.total ||
+        order.total_amount ||
+        order.amount ||
+        order.grand_total ||
+        0,
+
+      currency: order.currency || "EUR",
+
+      staffName: State.user?.name || "Unbekannt",
+
+      items: items,
+    }),
+  });
+
+  const result = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(
+      result?.error ||
+        `Discord-Quittung konnte nicht gesendet werden (${response.status}).`,
+    );
+  }
+
+  return result;
+}
+
+window.sendReceiptToDiscord = sendReceiptToDiscord;
+
+window.App = App;
+window.State = State;
+window.Duty = Duty;
