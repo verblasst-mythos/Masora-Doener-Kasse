@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="de" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+    <title>Masora Döner — Kasse</title>
+    <meta
+      name="description"
+      content="Kassensystem für Masora Döner: Bestellungen aufnehmen, kassieren, Bons drucken und Tagesumsätze auswerten."
+    />
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body>
+    <!-- ==================================================================
+         Anmeldung
+         ================================================================== -->
+    <div class="login hidden" id="login">
+      <div class="login-card">
+        <div class="brand">
+          <!-- Logo: Dönerspieß -->
+          <svg width="44" height="44" viewBox="0 0 32 32" aria-label="Masora Döner Logo" role="img">
+            <path
+              d="M16 2.4v3.4M16 27.4v2.6"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.6"
+              stroke-linecap="round"
+            />
+            <path
+              d="M16 6.2c5.4 0 8.2 3.5 8.2 8.2 0 .2 0 .5-.02.7H7.82c-.02-.2-.02-.5-.02-.7C7.8 9.7 10.6 6.2 16 6.2z"
+              fill="currentColor"
+            />
+            <path
+              d="M8.1 17.3h15.8a20 20 0 0 1-1.1 3.5H9.2a20 20 0 0 1-1.1-3.5z"
+              fill="currentColor"
+            />
+            <path
+              d="M10.4 22.6h11.2C20.3 24.7 18.4 26.5 16 27.9c-2.4-1.4-4.3-3.2-5.6-5.3z"
+              fill="currentColor"
+            />
+          </svg>
+          <div class="brand-text">
+            <div class="brand-name">Masora Döner</div>
+            <div class="brand-sub">Kassensystem</div>
+          </div>
+        </div>
+        <p class="login-hint" id="login-hint">PIN eingeben, um die Kasse zu öffnen</p>
+        <div class="pin-display" id="pin-display">
+          <span class="pin-dot"></span><span class="pin-dot"></span>
+          <span class="pin-dot"></span><span class="pin-dot"></span>
+        </div>
+        <div class="pin-pad" id="pin-pad">
+          <button data-key="1">1</button>
+          <button data-key="2">2</button>
+          <button data-key="3">3</button>
+          <button data-key="4">4</button>
+          <button data-key="5">5</button>
+          <button data-key="6">6</button>
+          <button data-key="7">7</button>
+          <button data-key="8">8</button>
+          <button data-key="9">9</button>
+          <button data-key="clear" aria-label="Eingabe löschen">C</button>
+          <button data-key="0">0</button>
+          <button data-key="del" aria-label="Eine Ziffer zurück">
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+            >
+              <path d="M20 6H10L4 12l6 6h10V6zM17 9.5l-5 5M12 9.5l5 5" />
+            </svg>
+          </button>
+        </div>
+        <p class="login-error" id="login-error" role="status"></p>
+      </div>
+    </div>
+
+    <!-- ==================================================================
+         Anwendung
+         ================================================================== -->
+    <div class="app hidden" id="app">
+      <header class="topbar">
+        <div class="brand">
+          <!-- Logo: Dönerspieß -->
+          <svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true">
+            <path
+              d="M16 2.4v3.4M16 27.4v2.6"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.6"
+              stroke-linecap="round"
+            />
+            <path
+              d="M16 6.2c5.4 0 8.2 3.5 8.2 8.2 0 .2 0 .5-.02.7H7.82c-.02-.2-.02-.5-.02-.7C7.8 9.7 10.6 6.2 16 6.2z"
+              fill="currentColor"
+            />
+            <path
+              d="M8.1 17.3h15.8a20 20 0 0 1-1.1 3.5H9.2a20 20 0 0 1-1.1-3.5z"
+              fill="currentColor"
+            />
+            <path
+              d="M10.4 22.6h11.2C20.3 24.7 18.4 26.5 16 27.9c-2.4-1.4-4.3-3.2-5.6-5.3z"
+              fill="currentColor"
+            />
+          </svg>
+          <div class="brand-text">
+            <div class="brand-name">Masora Döner</div>
+            <div class="brand-sub">Kasse</div>
+          </div>
+        </div>
+
+        <nav class="nav" id="nav" aria-label="Hauptbereiche">
+          <button data-view="kasse" aria-current="true">Kasse</button>
+          <button data-view="bestellungen">Bestellungen</button>
+          <button data-view="verwaltung" id="nav-admin" class="hidden">Verwaltung</button>
+        </nav>
+
+        <div class="topbar-right">
+          <span class="user-chip">
+            <span class="dot"></span>
+            <span id="user-name">—</span>
+            <span class="muted" id="user-role"></span>
+          </span>
+          <button class="icon-btn" data-theme-toggle aria-label="Design wechseln"></button>
+          <button class="icon-btn" id="logout" aria-label="Abmelden">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <main class="main">
+        <!-- ---------------- Kasse ---------------- -->
+        <section class="view" data-view-panel="kasse">
+          <div class="pos-left">
+            <div class="cat-bar" id="cat-bar" role="group" aria-label="Kategorien"></div>
+            <div class="product-grid scroll" id="product-grid"></div>
+          </div>
+
+          <aside class="cart" aria-label="Warenkorb">
+            <div class="cart-head">
+              <span class="cart-title">Bestellung</span>
+              <span class="badge" id="cart-count">0</span>
+              <button class="btn btn-sm btn-ghost" id="cart-clear" style="margin-left:auto">
+                Leeren
+              </button>
+            </div>
+
+            <div class="cart-items scroll" id="cart-items"></div>
+
+            <div class="cart-foot">
+              <div class="field">
+                <label for="discount-select">Rabatt</label>
+                <select class="select" id="discount-select">
+                  <option value="">Kein Rabatt</option>
+                </select>
+              </div>
+
+              <div class="sum-row"><span>Zwischensumme</span><span id="sum-subtotal">0,00 €</span></div>
+              <div class="sum-row discount hidden" id="row-discount">
+                <span>Rabatt</span><span id="sum-discount">0,00 €</span>
+              </div>
+              <div class="sum-row"><span>enthaltene MwSt.</span><span id="sum-vat">0,00 €</span></div>
+
+              <div class="sum-total">
+                <span class="sum-total-label">Summe</span>
+                <span class="sum-total-value" id="sum-total">0,00 €</span>
+              </div>
+
+              <div class="pay-split">
+                <button class="btn" id="pay-card" disabled>Karte</button>
+                <button class="btn btn-primary" id="pay-cash" disabled>Bar kassieren</button>
+              </div>
+            </div>
+          </aside>
+        </section>
+
+        <!-- ---------------- Bestellungen ---------------- -->
+        <section class="view hidden" data-view-panel="bestellungen">
+          <div class="page">
+            <div class="page-head">
+              <h1 class="page-title">Bestellungen</h1>
+              <div class="subnav" id="o-range">
+                <button data-range="today" aria-current="true">Heute</button>
+                <button data-range="week">7 Tage</button>
+                <button data-range="all">Alle</button>
+              </div>
+              <span class="spacer"></span>
+              <button class="btn btn-sm" id="o-reload">Aktualisieren</button>
+            </div>
+
+            <div class="page-body scroll">
+              <div class="stats">
+                <div class="stat accent">
+                  <div class="stat-label">Umsatz</div>
+                  <div class="stat-value" id="o-revenue">0,00 €</div>
+                </div>
+                <div class="stat">
+                  <div class="stat-label">Bestellungen</div>
+                  <div class="stat-value" id="o-count">0</div>
+                </div>
+                <div class="stat">
+                  <div class="stat-label">Ø pro Bon</div>
+                  <div class="stat-value" id="o-avg">0,00 €</div>
+                </div>
+                <div class="stat">
+                  <div class="stat-label">Bar</div>
+                  <div class="stat-value" id="o-cash">0,00 €</div>
+                </div>
+                <div class="stat">
+                  <div class="stat-label">Karte</div>
+                  <div class="stat-value" id="o-card">0,00 €</div>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="table-wrap">
+                  <table class="data">
+                    <thead>
+                      <tr>
+                        <th>Bon</th>
+                        <th>Zeit</th>
+                        <th>Inhalt</th>
+                        <th>Zahlung</th>
+                        <th class="num">Summe</th>
+                        <th>Status</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody id="o-tbody"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ---------------- Verwaltung ---------------- -->
+        <section class="view hidden" data-view-panel="verwaltung">
+          <div class="page">
+            <div class="page-head">
+              <h1 class="page-title">Verwaltung</h1>
+              <div class="subnav" id="admin-subnav">
+                <button data-tab="produkte" aria-current="true">Produkte</button>
+                <button data-tab="rabatte">Rabatte</button>
+                <button data-tab="personal">Personal</button>
+                <button data-tab="einstellungen">Einstellungen</button>
+                <button data-tab="abschluss">Tagesabschluss</button>
+              </div>
+            </div>
+            <div class="page-body scroll" id="admin-body"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div class="toasts" id="toasts" aria-live="polite"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+    <script src="js/db.js"></script>
+    <script src="js/app.js"></script>
+    <script src="js/kasse.js"></script>
+    <script src="js/orders.js"></script>
+    <script src="js/admin.js"></script>
+    <script>
+      Kasse.bind();
+      Orders.bind();
+      Admin.bind();
+      App.boot();
+    </script>
+  </body>
+</html>
