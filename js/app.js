@@ -15,6 +15,7 @@ const State = {
   shift: null, // laufende Schicht, wenn eingestempelt
   category: null,
   view: "kasse",
+  userRole: null, // Wird beim Login gesetzt
 };
 
 /** Nach dieser Zeit wird die Kasse automatisch abgemeldet. */
@@ -251,10 +252,12 @@ const Duty = {
   async load() {
     State.shift = null;
     if (!State.user) return;
+    
     try {
+      // Offene Schicht laden
       State.shift = await DB.openShift(State.user.id);
-      // Wurde die Kasse vor kurzem automatisch abgemeldet?
-      // Dann die Schicht fortsetzen statt sie zu zerstückeln.
+      
+      // Falls keine offene Schicht, aber vor kurzem automatisch beendet
       if (!State.shift) {
         const resumed = await DB.resumeShift(State.user.id);
         if (resumed) {
@@ -262,9 +265,22 @@ const Duty = {
           toast("Schicht fortgesetzt — du bist wieder im Dienst");
         }
       }
+      
+      // Falls immer noch keine Schicht, prüfe letzte 24h
+      if (!State.shift) {
+        const shifts = await DB.listShifts({ 
+          from: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+          staffId: State.user.id 
+        });
+        const openShift = shifts.find(s => !s.ended_at);
+        if (openShift) {
+          State.shift = openShift;
+        }
+      }
     } catch (err) {
-      console.error(err);
+      console.error("Fehler beim Laden der Schicht:", err);
     }
+    
     this.paint();
   },
 
