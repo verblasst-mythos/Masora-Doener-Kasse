@@ -1,311 +1,248 @@
+/* ==========================================================================
+   Verwaltung: Produkte, Rabatte, Personal, Einstellungen, Tagesabschluss
+   ========================================================================== */
+"use strict";
+
 const Admin = {
+  tab: "produkte",
+  products: [],
+  discounts: [],
+  coops: [],
+  staff: [],
+  moves: [],
+  shifts: [],
+  shiftRange: 7, // Tage für die Dienstzeiten-Übersicht
+
   open() {
     // Tabs basierend auf Rolle ein-/ausblenden
-    const role = State.userRole || State.user?.role || "kasse";
-
+    const role = State.userRole || State.user?.role || 'kasse';
+    
     // Welche Tabs darf welche Rolle sehen?
     const allowedTabs = {
-      produkte: ["admin", "service", "lager"],
-      lager: ["admin", "lager"],
-      rabatte: ["admin"],
-      kooperationen: ["admin"],
-      personal: ["admin"],
-      dienstzeiten: ["admin", "service"],
-      einstellungen: ["admin"],
-      abschluss: ["admin"],
+      produkte: ['admin', 'service', 'lager'],
+      lager: ['admin', 'lager'],
+      rabatte: ['admin'],
+      kooperationen: ['admin'],
+      personal: ['admin'],
+      dienstzeiten: ['admin', 'service'],
+      einstellungen: ['admin'],
+      abschluss: ['admin'],
     };
-
+    
     // Tabs ein-/ausblenden
-    $$("#admin-subnav button").forEach((btn) => {
+    $$('#admin-subnav button').forEach(btn => {
       const tab = btn.dataset.tab;
-      const allowed = allowedTabs[tab] || ["admin"];
-      btn.classList.toggle("hidden", !allowed.includes(role));
+      const allowed = allowedTabs[tab] || ['admin'];
+      btn.classList.toggle('hidden', !allowed.includes(role));
     });
-
+    
     // Ersten sichtbaren Tab aktivieren
-    const firstVisible = $("#admin-subnav button:not(.hidden)");
+    const firstVisible = $('#admin-subnav button:not(.hidden)');
     if (firstVisible) {
       this.tab = firstVisible.dataset.tab;
     }
-
+    
     // Tabs malen und laden
     this.paintTabs();
     this.loadTab();
   },
 
-  /* ---------- Produkte ---------- */
+  paintTabs() {
+    $$("#admin-subnav button").forEach((b) =>
+      b.setAttribute("aria-current", String(b.dataset.tab === this.tab)),
+    );
+  },
+
+  busy(text = "Lade …") {
+    $("#admin-body").innerHTML =
+      `<p class="muted" style="font-size:var(--text-sm)">${esc(text)}</p>`;
+  },
+
+  async loadTab() {
+    this.busy();
+    try {
+      if (this.tab === "produkte") {
+        this.products = await DB.listProducts(false);
+        this.renderProducts();
+      } else if (this.tab === "rabatte") {
+        this.discounts = await DB.listDiscounts(false);
+        this.renderDiscounts();
+      } else if (this.tab === "personal") {
+        this.staff = await DB.listStaff(false);
+        this.renderStaff();
+      } else if (this.tab === "kooperationen") {
+        this.coops = await DB.listCoops(false);
+        this.renderCoops();
+      } else if (this.tab === "lager") {
+        const [products, moves] = await Promise.all([
+          DB.listProducts(false),
+          DB.listStockMoves({ limit: 40 }),
+        ]);
+        this.products = products;
+        this.moves = moves;
+        this.renderStock();
+      } else if (this.tab === "dienstzeiten") {
+        const from = startOfDay(-(this.shiftRange - 1)).toISOString();
+        const [shifts, staff] = await Promise.all([
+          DB.listShifts({ from }),
+          DB.listStaff(false),
+        ]);
+        this.shifts = shifts;
+        this.staff = staff;
+        this.renderShifts();
+      } else if (this.tab === "einstellungen") {
+        State.settings = await DB.getSettings();
+        this.renderSettings();
+      } else if (this.tab === "abschluss") {
+        this.renderClosing(
+          await DB.listOrders({ from: startOfDay(0).toISOString() }),
+        );
+      }
+    } catch (err) {
+      fail(err);
+      $("#admin-body").innerHTML =
+        `<p class="muted" style="font-size:var(--text-sm)">Konnte nicht geladen werden.</p>`;
+    }
+  },
+
+  /* --------------------------------------------------------------------------
+     Produkte
+     -------------------------------------------------------------------------- */
 
   renderProducts() {
-    const cats = [...new Set(this.products.map((p) => p.category))];
-
-    $("#admin-body").innerHTML = `
-      <div class="row" style="margin-bottom:var(--space-4)">
-        <button class="btn btn-primary" data-new-product>+ Neues Produkt</button>
-        <span class="muted" style="font-size:var(--text-sm)">
-          ${this.products.length} Produkte in ${cats.length} Kategorien
-        </span>
+    const cats = [...new Set(this.products.map((p) => p.category || "Sonstiges"))];
+    let html = `
+      <div class="toolbar">
+        <button class="btn btn-primary" id="prod-add">+ Produkt</button>
+        <span class="spacer"></span>
+        <span class="muted" style="font-size:var(--text-sm)">${this.products.length} Produkte</span>
       </div>
-
-      <div class="card">
+      <div class="card" style="margin-top:var(--space-4)">
         <div class="table-wrap">
           <table class="data">
             <thead>
               <tr>
-                <th>Produkt</th>
+                <th>Name</th>
                 <th>Kategorie</th>
                 <th class="num">Preis</th>
-                <th class="num">Bestand</th>
-                <th>Status</th>
+                <th class="num">MwSt.</th>
+                <th>Lager</th>
                 <th></th>
               </tr>
             </thead>
-
             <tbody>
-              ${
-                this.products.length
-                  ? this.products
-                      .map(
-                        (p) => `<tr>
-            <td class="strong">${esc(p.name)}</td>
-            <td class="muted">${esc(p.category)}</td>
-            <td class="num">${money(p.price)}</td>
-            <td class="num">
-              ${
-                p.track_stock === false
-                  ? '<span class="muted">—</span>'
-                  : Number(p.stock ?? 0)
-              }
-            </td>
-            <td>
-              <span class="tag ${p.is_active ? "ok" : ""}">
-                ${p.is_active ? "Aktiv" : "Inaktiv"}
-              </span>
-            </td>
-            <td>
-              <div class="row" style="gap:var(--space-2);flex-wrap:nowrap">
-                <button class="btn btn-sm" data-edit-product="${p.id}">
-                  Bearbeiten
-                </button>
-                <button class="btn btn-sm btn-danger" data-del-product="${p.id}">
-                  Löschen
-                </button>
-              </div>
-            </td>
-          </tr>`,
-                      )
-                      .join("")
-                  : `<tr>
-                      <td colspan="6" class="muted" style="padding:var(--space-8);text-align:center">
-                        Noch keine Produkte angelegt.
-                      </td>
-                    </tr>`
-              }
+    `;
+
+    for (const p of this.products) {
+      const vatRate = Number(p.vat_rate || 0) * 100;
+      const stockInfo = p.track_stock
+        ? `<span class="${p.stock <= p.min_stock ? 'text-error' : 'muted'}">${p.stock} / ${p.min_stock}</span>`
+        : '<span class="muted">—</span>';
+
+      html += `
+        <tr>
+          <td>${esc(p.name)}</td>
+          <td>${esc(p.category || "Sonstiges")}</td>
+          <td class="num">${money(p.price)}</td>
+          <td class="num">${vatRate.toFixed(0)} %</td>
+          <td>${stockInfo}</td>
+          <td class="actions">
+            <button class="icon-btn" data-edit="${p.id}" aria-label="Bearbeiten">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </button>
+            <button class="icon-btn" data-delete="${p.id}" aria-label="Löschen">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            </button>
+          </td>
+        </tr>
+      `;
+    }
+
+    html += `
             </tbody>
           </table>
         </div>
-      </div>`;
+      </div>
+    `;
+
+    $("#admin-body").innerHTML = html;
+
+    // Bindings
+    $("#prod-add")?.addEventListener("click", () => this.editProduct());
+    $$("#admin-body [data-edit]").forEach((b) =>
+      b.addEventListener("click", () => this.editProduct(b.dataset.edit)),
+    );
+    $$("#admin-body [data-delete]").forEach((b) =>
+      b.addEventListener("click", () => this.deleteProduct(b.dataset.delete)),
+    );
   },
 
-  /**
-   * Ermittelt die Reihenfolge-Nummer einer Kategorie.
-   * Bekannte Kategorie -> gleiche Nummer wie bisher.
-   * Neue Kategorie -> hinten anstellen.
-   */
-  categoryOrderFor(category) {
-    const match = (this.products || []).find(
-      (p) => p.category === category,
-    );
-
-    if (match && Number.isFinite(Number(match.category_order))) {
-      return Number(match.category_order);
-    }
-
-    const max = (this.products || []).reduce(
-      (acc, p) => Math.max(acc, Number(p.category_order) || 0),
-      0,
-    );
-
-    return max + 10;
-  },
-
-  productForm(p = null) {
-    const cats = [...new Set(this.products.map((x) => x.category))];
+  async editProduct(id = null) {
+    const p = id ? this.products.find((x) => x.id === id) : null;
+    const isNew = !p;
 
     openModal({
-      title: p ? "Produkt bearbeiten" : "Neues Produkt",
-
+      title: isNew ? "Produkt hinzufügen" : "Produkt bearbeiten",
       bodyHTML: `
         <div class="field">
-          <label for="f-name">Name</label>
-          <input
-            class="input"
-            id="f-name"
-            value="${esc(p?.name || "")}"
-            placeholder="z. B. Döner mit Käse"
-          >
+          <label for="prod-name">Name</label>
+          <input id="prod-name" type="text" value="${esc(p?.name || "")}" />
         </div>
-
         <div class="field">
-          <label for="f-cat">Kategorie</label>
-          <input
-            class="input"
-            id="f-cat"
-            list="cat-list"
-            value="${esc(p?.category || cats[0] || "Döner")}"
-          >
-
-          <datalist id="cat-list">
-            ${cats
-              .map((c) => `<option value="${esc(c)}">`)
-              .join("")}
-          </datalist>
+          <label for="prod-cat">Kategorie</label>
+          <input id="prod-cat" type="text" value="${esc(p?.category || "")}" />
         </div>
-
         <div class="field">
-          <label for="f-price">Preis in Euro</label>
-          <input
-            class="input"
-            id="f-price"
-            type="number"
-            step="0.10"
-            min="0"
-            inputmode="decimal"
-            value="${p ? Number(p.price).toFixed(2) : "0.00"}"
-          >
+          <label for="prod-price">Preis (€)</label>
+          <input id="prod-price" type="number" step="0.01" value="${p?.price || ""}" />
         </div>
-
         <div class="field">
-          <label for="f-sort">
-            Sortierung (kleine Zahl = weiter vorne)
+          <label for="prod-vat">MwSt. (%)</label>
+          <input id="prod-vat" type="number" step="0.1" value="${Number(p?.vat_rate || 0) * 100}" />
+        </div>
+        <div class="field">
+          <label for="prod-stock">Lagerbestand</label>
+          <input id="prod-stock" type="number" step="0.01" value="${p?.stock ?? 0}" />
+        </div>
+        <div class="field">
+          <label for="prod-minstock">Mindestbestand</label>
+          <input id="prod-minstock" type="number" step="0.01" value="${p?.min_stock ?? 0}" />
+        </div>
+        <div class="field">
+          <label>
+            <input type="checkbox" id="prod-track" ${p?.track_stock ? "checked" : ""} />
+            Lagerverwaltung aktivieren
           </label>
-
-          <input
-            class="input"
-            id="f-sort"
-            type="number"
-            step="1"
-            value="${p?.sort_order ?? 0}"
-          >
-        </div>
-
-        <div class="field">
-          <label for="f-track">Lager führen</label>
-
-          <select class="select" id="f-track">
-            <option
-              value="1"
-              ${p?.track_stock !== false ? "selected" : ""}
-            >
-              Ja — Bestand wird beim Verkauf abgezogen
-            </option>
-
-            <option
-              value="0"
-              ${p?.track_stock === false ? "selected" : ""}
-            >
-              Nein — unbegrenzt verfügbar
-            </option>
-          </select>
-        </div>
-
-        <div class="field">
-          <label for="f-stock">Bestand (Stück)</label>
-
-          <input
-            class="input"
-            id="f-stock"
-            type="number"
-            step="1"
-            min="0"
-            value="${p ? Number(p.stock ?? 0) : 0}"
-          >
-        </div>
-
-        <div class="field">
-          <label for="f-min">
-            Mindestbestand — darunter kommt eine Warnung
-          </label>
-
-          <input
-            class="input"
-            id="f-min"
-            type="number"
-            step="1"
-            min="0"
-            value="${p ? Number(p.min_stock ?? 0) : 5}"
-          >
-        </div>
-
-        <div class="field">
-          <label for="f-active">Status</label>
-
-          <select class="select" id="f-active">
-            <option
-              value="1"
-              ${p?.is_active !== false ? "selected" : ""}
-            >
-              Aktiv — in der Kasse sichtbar
-            </option>
-
-            <option
-              value="0"
-              ${p?.is_active === false ? "selected" : ""}
-            >
-              Inaktiv — ausgeblendet
-            </option>
-          </select>
         </div>
       `,
-
       footHTML: `
         <button class="btn" data-close>Abbrechen</button>
-        <button class="btn btn-primary" id="f-save">
-          Speichern
-        </button>
+        <button class="btn btn-primary" data-save>${isNew ? "Hinzufügen" : "Speichern"}</button>
       `,
+      onMount(root) {
+        $("[data-save]", root).addEventListener("click", async () => {
+          const name = $("#prod-name", root).value.trim();
+          const category = $("#prod-cat", root).value.trim() || "Sonstiges";
+          const price = parseFloat($("#prod-price", root).value) || 0;
+          const vat_rate = (parseFloat($("#prod-vat", root).value) || 0) / 100;
+          const stock = parseFloat($("#prod-stock", root).value) || 0;
+          const min_stock = parseFloat($("#prod-minstock", root).value) || 0;
+          const track_stock = $("#prod-track", root).checked;
 
-      onMount: (root) => {
-        $("#f-save", root).addEventListener("click", async () => {
-          const category =
-            $("#f-cat", root).value.trim() || "Sonstiges";
-
-          const payload = {
-            name: $("#f-name", root).value.trim(),
-            category,
-            category_order: this.categoryOrderFor(category),
-            price: num($("#f-price", root).value),
-            sort_order:
-              parseInt($("#f-sort", root).value, 10) || 0,
-            track_stock: $("#f-track", root).value === "1",
-            stock: num($("#f-stock", root).value),
-            min_stock: num($("#f-min", root).value),
-            is_active: $("#f-active", root).value === "1",
-          };
-
-          if (!payload.name) {
-            return toast(
-              "Bitte einen Namen eingeben",
-              "error",
-            );
+          if (!name) {
+            toast("Name darf nicht leer sein", "error");
+            return;
           }
 
           try {
-            if (p) {
-              await DB.updateProduct(p.id, payload);
+            if (isNew) {
+              await DB.createProduct({ name, category, price, vat_rate, stock, min_stock, track_stock });
             } else {
-              await DB.createProduct(payload);
+              await DB.updateProduct(p.id, { name, category, price, vat_rate, stock, min_stock, track_stock });
             }
-
             closeModal();
-
-            toast(
-              p
-                ? "Produkt aktualisiert"
-                : "Produkt angelegt",
-            );
-
-            await this.loadTab();
-            await this.refreshKasse();
+            await Admin.loadTab();
+            toast(isNew ? "Produkt hinzugefügt" : "Produkt gespeichert");
           } catch (err) {
             fail(err);
           }
@@ -314,1277 +251,458 @@ const Admin = {
     });
   },
 
-  /* ---------- Rabatte ---------- */
+  async deleteProduct(id) {
+    const p = this.products.find((x) => x.id === id);
+    if (!p) return;
 
-  renderDiscounts() {
-    $("#admin-body").innerHTML = `
-      <div class="row" style="margin-bottom:var(--space-4)">
-        <button class="btn btn-primary" data-new-discount>
-          + Neuer Rabatt
-        </button>
-      </div>
+    const ok = await confirmDialog(
+      "Produkt löschen?",
+      `"${p.name}" wird endgültig gelöscht.`,
+      "Löschen",
+    );
+    if (!ok) return;
 
-      <div class="card">
-        <div class="table-wrap">
-          <table class="data">
-            <thead>
-              <tr>
-                <th>Bezeichnung</th>
-                <th>Art</th>
-                <th class="num">Wert</th>
-                <th>Status</th>
-                <th></th>
-              </tr>
-            </thead>
-
-            <tbody>
-              ${
-                this.discounts.length
-                  ? this.discounts
-                      .map(
-                        (d) => `<tr>
-              <td class="strong">${esc(d.name)}</td>
-              <td class="muted">
-                ${
-                  d.kind === "percent"
-                    ? "Prozent"
-                    : "Fester Betrag"
-                }
-              </td>
-
-              <td class="num">
-                ${
-                  d.kind === "percent"
-                    ? Number(d.value) + " %"
-                    : money(d.value)
-                }
-              </td>
-
-              <td>
-                <span class="tag ${d.is_active ? "ok" : ""}">
-                  ${d.is_active ? "Aktiv" : "Inaktiv"}
-                </span>
-              </td>
-
-              <td>
-                <div
-                  class="row"
-                  style="gap:var(--space-2);flex-wrap:nowrap"
-                >
-                  <button
-                    class="btn btn-sm"
-                    data-edit-discount="${d.id}"
-                  >
-                    Bearbeiten
-                  </button>
-
-                  <button
-                    class="btn btn-sm btn-danger"
-                    data-del-discount="${d.id}"
-                  >
-                    Löschen
-                  </button>
-                </div>
-              </td>
-            </tr>`,
-                      )
-                      .join("")
-                  : `<tr>
-                      <td
-                        colspan="5"
-                        class="muted"
-                        style="padding:var(--space-8);text-align:center"
-                      >
-                        Noch keine Rabatte angelegt.
-                      </td>
-                    </tr>`
-              }
-            </tbody>
-          </table>
-        </div>
-      </div>`;
+    try {
+      await DB.deleteProduct(id);
+      await this.loadTab();
+      toast("Produkt gelöscht");
+    } catch (err) {
+      fail(err);
+    }
   },
 
-  discountForm(d = null) {
-    openModal({
-      title: d ? "Rabatt bearbeiten" : "Neuer Rabatt",
-
-      bodyHTML: `
-        <div class="field">
-          <label for="d-name">Bezeichnung</label>
-
-          <input
-            class="input"
-            id="d-name"
-            value="${esc(d?.name || "")}"
-            placeholder="z. B. Stammkunde 10%"
-          >
-        </div>
-
-        <div class="field">
-          <label for="d-kind">Art</label>
-
-          <select class="select" id="d-kind">
-            <option
-              value="percent"
-              ${d?.kind !== "fixed" ? "selected" : ""}
-            >
-              Prozent vom Gesamtbetrag
-            </option>
-
-            <option
-              value="fixed"
-              ${d?.kind === "fixed" ? "selected" : ""}
-            >
-              Fester Betrag in Euro
-            </option>
-          </select>
-        </div>
-
-        <div class="field">
-          <label for="d-value">Wert</label>
-
-          <input
-            class="input"
-            id="d-value"
-            type="number"
-            step="0.5"
-            min="0"
-            inputmode="decimal"
-            value="${d ? Number(d.value) : 10}"
-          >
-        </div>
-
-        <div class="field">
-          <label for="d-active">Status</label>
-
-          <select class="select" id="d-active">
-            <option
-              value="1"
-              ${d?.is_active !== false ? "selected" : ""}
-            >
-              Aktiv
-            </option>
-
-            <option
-              value="0"
-              ${d?.is_active === false ? "selected" : ""}
-            >
-              Inaktiv
-            </option>
-          </select>
-        </div>
-      `,
-
-      footHTML: `
-        <button class="btn" data-close>Abbrechen</button>
-        <button class="btn btn-primary" id="d-save">
-          Speichern
-        </button>
-      `,
-
-      onMount: (root) => {
-        $("#d-save", root).addEventListener(
-          "click",
-          async () => {
-            const payload = {
-              name: $("#d-name", root).value.trim(),
-              kind: $("#d-kind", root).value,
-              value: num($("#d-value", root).value),
-              is_active:
-                $("#d-active", root).value === "1",
-            };
-
-            if (!payload.name) {
-              return toast(
-                "Bitte eine Bezeichnung eingeben",
-                "error",
-              );
-            }
-
-            try {
-              if (d) {
-                await DB.updateDiscount(d.id, payload);
-              } else {
-                await DB.createDiscount(payload);
-              }
-
-              closeModal();
-              toast("Gespeichert");
-
-              await this.loadTab();
-              await this.refreshKasse();
-            } catch (err) {
-              fail(err);
-            }
-          },
-        );
-      },
-    });
-  },
-
-  /* ---------- Kooperationen ---------- */
-
-  renderCoops() {
-    $("#admin-body").innerHTML = `
-      <div class="row" style="margin-bottom:var(--space-4)">
-        <button class="btn btn-primary" data-new-coop>
-          + Neue Kooperation
-        </button>
-
-        <span
-          class="muted"
-          style="font-size:var(--text-sm)"
-        >
-          Kooperationen sind Rabatte, die an der Kasse
-          erst nach Eingabe des Codeworts gelten.
-        </span>
-      </div>
-
-      <div class="card">
-        <div class="table-wrap">
-          <table class="data">
-            <thead>
-              <tr>
-                <th>Partner</th>
-                <th>Art</th>
-                <th class="num">Rabatt</th>
-                <th>Codewort</th>
-                <th>Status</th>
-                <th></th>
-              </tr>
-            </thead>
-
-            <tbody>
-              ${
-                this.coops.length
-                  ? this.coops
-                      .map(
-                        (c) => `<tr>
-              <td class="strong">${esc(c.name)}</td>
-
-              <td class="muted">
-                ${
-                  c.kind === "percent"
-                    ? "Prozent"
-                    : "Fester Betrag"
-                }
-              </td>
-
-              <td class="num">
-                ${
-                  c.kind === "percent"
-                    ? Number(c.value) + " %"
-                    : money(c.value)
-                }
-              </td>
-
-              <td>
-                <code class="code">${esc(c.code)}</code>
-              </td>
-
-              <td>
-                <span class="tag ${c.is_active ? "ok" : ""}">
-                  ${c.is_active ? "Aktiv" : "Inaktiv"}
-                </span>
-              </td>
-
-              <td>
-                <div
-                  class="row"
-                  style="gap:var(--space-2);flex-wrap:nowrap"
-                >
-                  <button
-                    class="btn btn-sm"
-                    data-edit-coop="${c.id}"
-                  >
-                    Bearbeiten
-                  </button>
-
-                  <button
-                    class="btn btn-sm btn-danger"
-                    data-del-coop="${c.id}"
-                  >
-                    Löschen
-                  </button>
-                </div>
-              </td>
-            </tr>`,
-                      )
-                      .join("")
-                  : `<tr>
-                      <td
-                        colspan="6"
-                        class="muted"
-                        style="padding:var(--space-8);text-align:center"
-                      >
-                        Noch keine Kooperationen angelegt.
-                      </td>
-                    </tr>`
-              }
-            </tbody>
-          </table>
-        </div>
-      </div>`;
-  },
-
-  coopForm(c = null) {
-    openModal({
-      title: c
-        ? "Kooperation bearbeiten"
-        : "Neue Kooperation",
-
-      bodyHTML: `
-        <div class="field">
-          <label for="c-name">Name des Partners</label>
-
-          <input
-            class="input"
-            id="c-name"
-            value="${esc(c?.name || "")}"
-            placeholder="z. B. Fitnessstudio Nachbarschaft"
-          >
-        </div>
-
-        <div class="field">
-          <label for="c-kind">Art</label>
-
-          <select class="select" id="c-kind">
-            <option
-              value="percent"
-              ${c?.kind !== "fixed" ? "selected" : ""}
-            >
-              Prozent vom Gesamtbetrag
-            </option>
-
-            <option
-              value="fixed"
-              ${c?.kind === "fixed" ? "selected" : ""}
-            >
-              Fester Betrag in Euro
-            </option>
-          </select>
-        </div>
-
-        <div class="field">
-          <label for="c-value">Rabatt</label>
-
-          <input
-            class="input"
-            id="c-value"
-            type="number"
-            step="0.5"
-            min="0"
-            inputmode="decimal"
-            value="${c ? Number(c.value) : 15}"
-          >
-        </div>
-
-        <div class="field">
-          <label for="c-code">Codewort</label>
-
-          <input
-            class="input"
-            id="c-code"
-            value="${esc(c?.code || "")}"
-            autocomplete="off"
-            placeholder="z. B. FIT15"
-          >
-
-          <p
-            class="muted"
-            style="font-size:var(--text-xs);margin-top:var(--space-2)"
-          >
-            Nur wer dieses Wort an der Kasse eingibt,
-            bekommt den Rabatt.
-            Groß- und Kleinschreibung ist egal.
-          </p>
-        </div>
-
-        <div class="field">
-          <label for="c-active">Status</label>
-
-          <select class="select" id="c-active">
-            <option
-              value="1"
-              ${c?.is_active !== false ? "selected" : ""}
-            >
-              Aktiv
-            </option>
-
-            <option
-              value="0"
-              ${c?.is_active === false ? "selected" : ""}
-            >
-              Inaktiv
-            </option>
-          </select>
-        </div>
-      `,
-
-      footHTML: `
-        <button class="btn" data-close>Abbrechen</button>
-        <button class="btn btn-primary" id="c-save">
-          Speichern
-        </button>
-      `,
-
-      onMount: (root) => {
-        $("#c-save", root).addEventListener(
-          "click",
-          async () => {
-            const payload = {
-              name: $("#c-name", root).value.trim(),
-              kind: $("#c-kind", root).value,
-              value: num($("#c-value", root).value),
-              code: $("#c-code", root).value.trim(),
-              is_active:
-                $("#c-active", root).value === "1",
-            };
-
-            if (!payload.name) {
-              return toast(
-                "Bitte einen Namen eingeben",
-                "error",
-              );
-            }
-
-            if (payload.code.length < 3) {
-              return toast(
-                "Das Codewort braucht mindestens 3 Zeichen",
-                "error",
-              );
-            }
-
-            try {
-              if (c) {
-                await DB.updateCoop(c.id, payload);
-              } else {
-                await DB.createCoop(payload);
-              }
-
-              closeModal();
-              toast("Gespeichert");
-
-              await this.loadTab();
-            } catch (err) {
-              if (
-                String(err.message).includes(
-                  "cooperations_code_idx",
-                )
-              ) {
-                return fail(
-                  new Error(
-                    "Dieses Codewort wird schon verwendet",
-                  ),
-                );
-              }
-
-              fail(err);
-            }
-          },
-        );
-      },
-    });
-  },
-
-  /* ---------- Lager ---------- */
+  /* --------------------------------------------------------------------------
+     Lager
+     -------------------------------------------------------------------------- */
 
   renderStock() {
-    const tracked = this.products.filter(
-      (p) => p.track_stock !== false,
-    );
+    let html = `
+      <div class="toolbar">
+        <button class="btn btn-primary" id="stock-add">+ Wareneingang</button>
+        <span class="spacer"></span>
+        <span class="muted" style="font-size:var(--text-sm)">${this.products.length} Produkte</span>
+      </div>
+      <div class="card" style="margin-top:var(--space-4)">
+        <div class="table-wrap">
+          <table class="data">
+            <thead>
+              <tr>
+                <th>Produkt</th>
+                <th class="num">Aktuell</th>
+                <th class="num">Min.</th>
+                <th>Status</th>
+                <th>Letzte Bewegung</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+    `;
 
-    const low = tracked.filter(
-      (p) =>
-        Number(p.stock ?? 0) <=
-        Number(p.min_stock ?? 0),
-    );
+    for (const p of this.products.filter((x) => x.track_stock)) {
+      const lastMove = this.moves.find((m) => m.product_id === p.id);
+      const status =
+        p.stock <= 0
+          ? '<span class="text-error">Ausverkauft</span>'
+          : p.stock <= p.min_stock
+          ? '<span class="text-warn">Niedrig</span>'
+          : '<span class="text-success">OK</span>';
 
-    const out = tracked.filter(
-      (p) => Number(p.stock ?? 0) <= 0,
-    );
+      html += `
+        <tr>
+          <td>${esc(p.name)}</td>
+          <td class="num">${p.stock}</td>
+          <td class="num">${p.min_stock}</td>
+          <td>${status}</td>
+          <td>${lastMove ? fmtDateTime(lastMove.created_at) : '—'}</td>
+          <td class="actions">
+            <button class="icon-btn" data-adjust="${p.id}" aria-label="Bestand anpassen">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            </button>
+          </td>
+        </tr>
+      `;
+    }
 
-    const wert = num(
-      tracked.reduce(
-        (s, p) =>
-          s +
-          Number(p.stock ?? 0) *
-            Number(p.price ?? 0),
-        0,
-      ),
-    );
-
-    const reasonLabel = {
-      verkauf: "Verkauf",
-      storno: "Storno",
-      wareneingang: "Wareneingang",
-      korrektur: "Korrektur",
-      schwund: "Schwund",
-    };
-
-    $("#admin-body").innerHTML = `
-      <div class="stack">
-
-        <div class="stats" style="margin-bottom:0">
-          <div class="stat accent">
-            <div class="stat-label">
-              Warenwert im Lager
-            </div>
-            <div class="stat-value">
-              ${money(wert)}
-            </div>
-          </div>
-
-          <div class="stat">
-            <div class="stat-label">
-              Artikel mit Lager
-            </div>
-            <div class="stat-value">
-              ${tracked.length}
-            </div>
-          </div>
-
-          <div class="stat">
-            <div class="stat-label">
-              Nachbestellen
-            </div>
-            <div class="stat-value">
-              ${low.length}
-            </div>
-          </div>
-
-          <div class="stat">
-            <div class="stat-label">
-              Ausverkauft
-            </div>
-            <div class="stat-value">
-              ${out.length}
-            </div>
-          </div>
+    html += `
+            </tbody>
+          </table>
         </div>
+      </div>
+    `;
 
-        ${
-          low.length
-            ? `<div class="notice">
-                <strong>Nachbestellen:</strong>
-                ${low
-                  .map(
-                    (p) =>
-                      `${esc(p.name)} (${Number(
-                        p.stock ?? 0,
-                      )})`,
-                  )
-                  .join(" · ")}
-              </div>`
-            : ""
-        }
+    $("#admin-body").innerHTML = html;
 
-        <div>
-          <div class="section-title">
-            Bestand
-          </div>
-
-          <div class="card">
-            <div class="table-wrap">
-              <table class="data">
-                <thead>
-                  <tr>
-                    <th>Artikel</th>
-                    <th>Kategorie</th>
-                    <th class="num">Bestand</th>
-                    <th class="num">Minimum</th>
-                    <th>Lage</th>
-                    <th></th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  ${
-                    this.products.length
-                      ? this.products
-                          .map((p) => {
-                            const t =
-                              p.track_stock !== false;
-
-                            const s = Number(
-                              p.stock ?? 0,
-                            );
-
-                            const m = Number(
-                              p.min_stock ?? 0,
-                            );
-
-                            let lage =
-                              '<span class="tag">Ohne Lager</span>';
-
-                            if (t && s <= 0) {
-                              lage =
-                                '<span class="tag bad">Ausverkauft</span>';
-                            } else if (t && s <= m) {
-                              lage =
-                                '<span class="tag warn">Knapp</span>';
-                            } else if (t) {
-                              lage =
-                                '<span class="tag ok">In Ordnung</span>';
-                            }
-
-                            return `<tr>
-                              <td class="strong">
-                                ${esc(p.name)}
-                              </td>
-
-                              <td class="muted">
-                                ${esc(p.category)}
-                              </td>
-
-                              <td
-                                class="num ${
-                                  t && s <= m
-                                    ? "is-low"
-                                    : ""
-                                }"
-                              >
-                                ${t ? s : "—"}
-                              </td>
-
-                              <td class="num muted">
-                                ${t ? m : "—"}
-                              </td>
-
-                              <td>
-                                ${lage}
-                              </td>
-
-                              <td>
-                                <div
-                                  class="row"
-                                  style="gap:var(--space-2);flex-wrap:nowrap"
-                                >
-                                  <button
-                                    class="btn btn-sm"
-                                    data-stock-book="${p.id}"
-                                    ${
-                                      t
-                                        ? ""
-                                        : " disabled"
-                                    }
-                                  >
-                                    Buchen
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>`;
-                          })
-                          .join("")
-                      : `<tr>
-                          <td
-                            colspan="6"
-                            class="muted"
-                            style="padding:var(--space-8);text-align:center"
-                          >
-                            Noch keine Produkte angelegt.
-                          </td>
-                        </tr>`
-                  }
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <div class="section-title">
-            Letzte Lagerbewegungen
-          </div>
-
-          <div class="card">
-            <div class="table-wrap">
-              <table class="data">
-                <thead>
-                  <tr>
-                    <th>Zeit</th>
-                    <th>Artikel</th>
-                    <th class="num">Menge</th>
-                    <th>Grund</th>
-                    <th>Wer</th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  ${
-                    this.moves.length
-                      ? this.moves
-                          .map(
-                            (m) => `<tr>
-                              <td class="muted">
-                                ${fmtDateTime(
-                                  m.created_at,
-                                )}
-                              </td>
-
-                              <td>
-                                ${esc(m.product_name)}
-                              </td>
-
-                              <td
-                                class="num ${
-                                  Number(m.delta) < 0
-                                    ? "is-minus"
-                                    : "is-plus"
-                                }"
-                              >
-                                ${
-                                  Number(m.delta) > 0
-                                    ? "+"
-                                    : ""
-                                }${Number(m.delta)}
-                              </td>
-
-                              <td>
-                                <span class="tag">
-                                  ${esc(
-                                    reasonLabel[
-                                      m.reason
-                                    ] || m.reason,
-                                  )}
-                                </span>
-                              </td>
-
-                              <td class="muted">
-                                ${esc(
-                                  m.staff_name || "—",
-                                )}
-                              </td>
-                            </tr>`,
-                          )
-                          .join("")
-                      : `<tr>
-                          <td
-                            colspan="5"
-                            class="muted"
-                            style="padding:var(--space-8);text-align:center"
-                          >
-                            Noch keine Bewegungen erfasst.
-                          </td>
-                        </tr>`
-                  }
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-      </div>`;
+    $("#stock-add")?.addEventListener("click", () => this.adjustStock());
+    $$("#admin-body [data-adjust]").forEach((b) =>
+      b.addEventListener("click", () => this.adjustStock(b.dataset.adjust)),
+    );
   },
 
-  stockForm(p) {
+  async adjustStock(productId = null) {
+    const products = this.products.filter((x) => x.track_stock);
+    const product = productId ? products.find((p) => p.id === productId) : products[0];
+
+    if (!product) {
+      toast("Keine Produkte mit Lagerverwaltung", "error");
+      return;
+    }
+
     openModal({
-      title: "Bestand buchen — " + p.name,
-
+      title: "Lagerbestand anpassen",
       bodyHTML: `
-        <div class="pay-total">
-          <div class="pay-total-label">
-            Aktueller Bestand
-          </div>
-
-          <div class="pay-total-value">
-            ${Number(p.stock ?? 0)}
-          </div>
-        </div>
-
         <div class="field">
-          <label for="st-reason">Grund</label>
-
-          <select class="select" id="st-reason">
-            <option value="wareneingang">
-              Wareneingang — Bestand erhöhen
-            </option>
-
-            <option value="schwund">
-              Schwund oder Bruch — Bestand senken
-            </option>
-
-            <option value="korrektur">
-              Korrektur nach Zählung
-            </option>
+          <label for="adj-product">Produkt</label>
+          <select id="adj-product">
+            ${products.map((p) => `<option value="${p.id}" ${p.id === product.id ? 'selected' : ''}>${esc(p.name)} (${p.stock})</option>`).join('')}
           </select>
         </div>
-
         <div class="field">
-          <label for="st-qty">Menge</label>
-
-          <input
-            class="input"
-            id="st-qty"
-            type="number"
-            step="1"
-            min="0"
-            value="10"
-            inputmode="numeric"
-          >
+          <label for="adj-delta">Änderung (+/-)</label>
+          <input id="adj-delta" type="number" step="0.01" value="0" />
         </div>
-
-        <div class="quick-cash" id="st-quick">
-          <button class="btn btn-sm" data-q="5">5</button>
-          <button class="btn btn-sm" data-q="10">10</button>
-          <button class="btn btn-sm" data-q="24">24</button>
-          <button class="btn btn-sm" data-q="50">50</button>
+        <div class="field">
+          <label for="adj-reason">Grund</label>
+          <select id="adj-reason">
+            <option value="wareneingang">Wareneingang</option>
+            <option value="korrektur">Korrektur</option>
+            <option value="schwund">Schwund</option>
+          </select>
         </div>
-
-        <p
-          class="muted"
-          style="font-size:var(--text-sm);margin-top:var(--space-3)"
-          id="st-preview"
-        ></p>
       `,
-
       footHTML: `
-        <button class="btn" data-close>
-          Abbrechen
-        </button>
-
-        <button
-          class="btn btn-primary"
-          id="st-save"
-        >
-          Buchen
-        </button>
+        <button class="btn" data-close>Abbrechen</button>
+        <button class="btn btn-primary" data-save>Buchen</button>
       `,
+      onMount(root) {
+        $("[data-save]", root).addEventListener("click", async () => {
+          const pid = $("#adj-product", root).value;
+          const delta = parseFloat($("#adj-delta", root).value) || 0;
+          const reason = $("#adj-reason", root).value;
 
-      onMount: (root) => {
-        const qty = $("#st-qty", root);
-        const reason = $("#st-reason", root);
-        const preview = $("#st-preview", root);
-
-        const delta = () => {
-          const v = Math.abs(num(qty.value));
-
-          if (reason.value === "korrektur") {
-            return num(
-              v - Number(p.stock ?? 0),
-            );
+          if (delta === 0) {
+            toast("Änderung darf nicht 0 sein", "error");
+            return;
           }
 
-          return reason.value === "wareneingang"
-            ? v
-            : -v;
-        };
-
-        const update = () => {
-          const d = delta();
-
-          const neu = num(
-            Number(p.stock ?? 0) + d,
-          );
-
-          preview.textContent =
-            reason.value === "korrektur"
-              ? `Neuer Bestand: ${num(
-                  Math.abs(qty.value),
-                )} Stück (Differenz ${
-                  d > 0 ? "+" : ""
-                }${d})`
-              : `Neuer Bestand: ${neu} Stück (${
-                  d > 0 ? "+" : ""
-                }${d})`;
-
-          $("#st-save", root).disabled = d === 0;
-        };
-
-        qty.addEventListener("input", update);
-        reason.addEventListener("change", update);
-
-        $("#st-quick", root).addEventListener(
-          "click",
-          (e) => {
-            const b =
-              e.target.closest("button[data-q]");
-
-            if (!b) return;
-
-            qty.value = b.dataset.q;
-            update();
-          },
-        );
-
-        update();
-
-        $("#st-save", root).addEventListener(
-          "click",
-          async () => {
-            const d = delta();
-
-            if (d === 0) return;
-
-            try {
-              await DB.adjustStock(
-                p.id,
-                d,
-                reason.value,
-                State.user?.name || null,
-              );
-
-              closeModal();
-
-              toast(
-                `${p.name}: Bestand gebucht (${
-                  d > 0 ? "+" : ""
-                }${d})`,
-              );
-
-              await this.loadTab();
-              await this.refreshKasse();
-            } catch (err) {
-              fail(err);
-            }
-          },
-        );
-      },
-    });
-  },
-
-  /* ---------- Dienstzeiten ---------- */
-
-  renderShifts() {
-    const now = Date.now();
-
-    const secs = (s) =>
-      (s.ended_at
-        ? new Date(s.ended_at).getTime()
-        : now) -
-      new Date(s.started_at).getTime();
-
-    // Zusammenfassung je Mitarbeiter
-    const map = new Map();
-
-    this.shifts.forEach((s) => {
-      const key =
-        s.staff_id || s.staff_name;
-
-      if (!map.has(key)) {
-        map.set(key, {
-          name: s.staff_name,
-          seconds: 0,
-          count: 0,
-          open: false,
-          last: null,
+          try {
+            await DB.adjustStock(pid, delta, reason, State.user?.name || "Unbekannt");
+            closeModal();
+            await Admin.loadTab();
+            toast("Lagerbestand aktualisiert");
+          } catch (err) {
+            fail(err);
+          }
         });
-      }
-
-      const e = map.get(key);
-
-      e.count += 1;
-      e.seconds += secs(s) / 1000;
-
-      if (!s.ended_at) {
-        e.open = true;
-      }
-
-      if (
-        !e.last ||
-        new Date(s.started_at) >
-          new Date(e.last)
-      ) {
-        e.last = s.started_at;
-      }
-    });
-
-    const summary = [...map.values()].sort(
-      (a, b) => b.seconds - a.seconds,
-    );
-
-    const gesamt = summary.reduce(
-      (a, e) => a + e.seconds,
-      0,
-    );
-
-    const offen = this.shifts.filter(
-      (s) => !s.ended_at,
-    );
-
-    const ranges = [
-      { d: 1, label: "Heute" },
-      { d: 7, label: "7 Tage" },
-      { d: 30, label: "30 Tage" },
-    ];
-
-    $("#admin-body").innerHTML = `
-      <div class="stack">
-
-        <div class="row">
-          <div class="subnav" id="sh-range">
-            ${ranges
-              .map(
-                (r) =>
-                  `<button
-                    data-days="${r.d}"
-                    aria-current="${
-                      r.d === this.shiftRange
-                    }"
-                  >
-                    ${r.label}
-                  </button>`,
-              )
-              .join("")}
-          </div>
-
-          <span class="spacer"></span>
-
-          <span
-            class="muted"
-            style="font-size:var(--text-sm)"
-          >
-            Gesamte Dienstzeit:
-            <strong>
-              ${fmtDuration(gesamt)}
-            </strong>
-          </span>
-        </div>
-
-        ${
-          offen.length
-            ? `<div class="notice">
-                <strong>Gerade im Dienst:</strong>
-                ${offen
-                  .map(
-                    (s) =>
-                      `${esc(
-                        s.staff_name,
-                      )} (seit ${fmtTime(
-                        s.started_at,
-                      )}, ${fmtDuration(
-                        secs(s) / 1000,
-                      )})`,
-                  )
-                  .join(" · ")}
-              </div>`
-            : ""
-        }
-
-        <div>
-          <div class="section-title">
-            Dienstzeit je Mitarbeiter
-          </div>
-
-          <div class="card">
-            <div class="table-wrap">
-              <table class="data">
-                <thead>
-                  <tr>
-                    <th>Mitarbeiter</th>
-                    <th class="num">Schichten</th>
-                    <th class="num">Dienstzeit</th>
-                    <th>Anteil</th>
-                    <th>Zuletzt</th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  ${
-                    summary.length
-                      ? summary
-                          .map((e) => {
-                            const anteil =
-                              gesamt > 0
-                                ? Math.round(
-                                    (e.seconds /
-                                      gesamt) *
-                                      100,
-                                  )
-                                : 0;
-
-                            return `<tr>
-                              <td class="strong">
-                                ${esc(e.name)}
-                                ${
-                                  e.open
-                                    ? ' <span class="tag ok">im Dienst</span>'
-                                    : ""
-                                }
-                              </td>
-
-                              <td class="num">
-                                ${e.count}
-                              </td>
-
-                              <td class="num strong">
-                                ${fmtDuration(
-                                  e.seconds,
-                                )}
-                              </td>
-
-                              <td>
-                                <div
-                                  class="bar-track"
-                                  title="${anteil} %"
-                                >
-                                  <div
-                                    class="bar-fill"
-                                    style="width:${anteil}%"
-                                  ></div>
-                                </div>
-                              </td>
-
-                              <td class="muted">
-                                ${
-                                  e.last
-                                    ? fmtDateTime(
-                                        e.last,
-                                      )
-                                    : "—"
-                                }
-                              </td>
-                            </tr>`;
-                          })
-                          .join("")
-                      : `<tr>
-                          <td
-                            colspan="5"
-                            class="muted"
-                            style="padding:var(--space-8);text-align:center"
-                          >
-                            In diesem Zeitraum war niemand eingestempelt.
-                          </td>
-                        </tr>`
-                  }
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <div class="section-title">
-            Alle Schichten
-          </div>
-
-          <div class="card">
-            <div class="table-wrap">
-              <table class="data">
-                <thead>
-                  <tr>
-                    <th>Mitarbeiter</th>
-                    <th>Beginn</th>
-                    <th>Ende</th>
-                    <th class="num">Dauer</th>
-                    <th>Hinweis</th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  ${
-                    this.shifts.length
-                      ? this.shifts
-                          .map((s) => {
-                            const dauer =
-                              secs(s) / 1000;
-
-                            const lang =
-                              dauer >
-                              12 * 3600;
-
-                            return `<tr>
-                              <td class="strong">
-                                ${esc(
-                                  s.staff_name,
-                                )}
-                              </td>
-
-                              <td class="muted">
-                                ${fmtDateTime(
-                                  s.started_at,
-                                )}
-                              </td>
-
-                              <td class="muted">
-                                ${
-                                  s.ended_at
-                                    ? fmtDateTime(
-                                        s.ended_at,
-                                      )
-                                    : '<span class="tag ok">läuft</span>'
-                                }
-                              </td>
-
-                              <td class="num">
-                                ${fmtDuration(
-                                  dauer,
-                                )}
-                              </td>
-
-                              <td>
-                                ${
-                                  lang
-                                    ? '<span class="tag warn">über 12 Std — prüfen</span>'
-                                    : s.ended_auto
-                                    ? '<span class="tag">automatisch beendet</span>'
-                                    : '<span class="muted">—</span>'
-                                }
-                              </td>
-                            </tr>`;
-                          })
-                          .join("")
-                      : `<tr>
-                          <td
-                            colspan="5"
-                            class="muted"
-                            style="padding:var(--space-8);text-align:center"
-                          >
-                            Keine Schichten in diesem Zeitraum.
-                          </td>
-                        </tr>`
-                  }
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-      </div>`;
-
-    $("#sh-range").addEventListener(
-      "click",
-      (e) => {
-        const b =
-          e.target.closest(
-            "button[data-days]",
-          );
-
-        if (!b) return;
-
-        this.shiftRange =
-          Number(b.dataset.days);
-
-        this.loadTab();
       },
+    });
+  },
+
+  /* --------------------------------------------------------------------------
+     Rabatte
+     -------------------------------------------------------------------------- */
+
+  renderDiscounts() {
+    let html = `
+      <div class="toolbar">
+        <button class="btn btn-primary" id="disc-add">+ Rabatt</button>
+        <span class="spacer"></span>
+        <span class="muted" style="font-size:var(--text-sm)">${this.discounts.length} Rabatte</span>
+      </div>
+      <div class="card" style="margin-top:var(--space-4)">
+        <div class="table-wrap">
+          <table class="data">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Art</th>
+                <th class="num">Wert</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+    `;
+
+    for (const d of this.discounts) {
+      const kind = d.kind === 'percent' ? 'Prozent' : 'Euro';
+      const value = d.kind === 'percent' ? `${d.value}%` : money(d.value);
+
+      html += `
+        <tr>
+          <td>${esc(d.name)}</td>
+          <td>${kind}</td>
+          <td class="num">${value}</td>
+          <td class="actions">
+            <button class="icon-btn" data-edit="${d.id}" aria-label="Bearbeiten">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </button>
+            <button class="icon-btn" data-delete="${d.id}" aria-label="Löschen">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            </button>
+          </td>
+        </tr>
+      `;
+    }
+
+    html += `
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+
+    $("#admin-body").innerHTML = html;
+
+    $("#disc-add")?.addEventListener("click", () => this.editDiscount());
+    $$("#admin-body [data-edit]").forEach((b) =>
+      b.addEventListener("click", () => this.editDiscount(b.dataset.edit)),
+    );
+    $$("#admin-body [data-delete]").forEach((b) =>
+      b.addEventListener("click", () => this.deleteDiscount(b.dataset.delete)),
     );
   },
 
-  /* ---------- Personal ---------- */
+  async editDiscount(id = null) {
+    const d = id ? this.discounts.find((x) => x.id === id) : null;
+    const isNew = !d;
+
+    openModal({
+      title: isNew ? "Rabatt hinzufügen" : "Rabatt bearbeiten",
+      bodyHTML: `
+        <div class="field">
+          <label for="disc-name">Name</label>
+          <input id="disc-name" type="text" value="${esc(d?.name || "")}" />
+        </div>
+        <div class="field">
+          <label for="disc-kind">Art</label>
+          <select id="disc-kind">
+            <option value="percent" ${d?.kind === 'percent' ? 'selected' : ''}>Prozent (%)</option>
+            <option value="fixed" ${d?.kind === 'fixed' ? 'selected' : ''}>Fester Betrag (€)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="disc-value">Wert</label>
+          <input id="disc-value" type="number" step="0.01" value="${d?.value ?? ''}" />
+        </div>
+      `,
+      footHTML: `
+        <button class="btn" data-close>Abbrechen</button>
+        <button class="btn btn-primary" data-save>${isNew ? "Hinzufügen" : "Speichern"}</button>
+      `,
+      onMount(root) {
+        $("[data-save]", root).addEventListener("click", async () => {
+          const name = $("#disc-name", root).value.trim();
+          const kind = $("#disc-kind", root).value;
+          const value = parseFloat($("#disc-value", root).value) || 0;
+
+          if (!name) {
+            toast("Name darf nicht leer sein", "error");
+            return;
+          }
+
+          try {
+            if (isNew) {
+              await DB.createDiscount({ name, kind, value });
+            } else {
+              await DB.updateDiscount(d.id, { name, kind, value });
+            }
+            closeModal();
+            await Admin.loadTab();
+            toast(isNew ? "Rabatt hinzugefügt" : "Rabatt gespeichert");
+          } catch (err) {
+            fail(err);
+          }
+        });
+      },
+    });
+  },
+
+  async deleteDiscount(id) {
+    const d = this.discounts.find((x) => x.id === id);
+    if (!d) return;
+
+    const ok = await confirmDialog(
+      "Rabatt löschen?",
+      `"${d.name}" wird endgültig gelöscht.`,
+      "Löschen",
+    );
+    if (!ok) return;
+
+    try {
+      await DB.deleteDiscount(id);
+      await this.loadTab();
+      toast("Rabatt gelöscht");
+    } catch (err) {
+      fail(err);
+    }
+  },
+
+  /* --------------------------------------------------------------------------
+     Kooperationen
+     -------------------------------------------------------------------------- */
+
+  renderCoops() {
+    let html = `
+      <div class="toolbar">
+        <button class="btn btn-primary" id="coop-add">+ Kooperation</button>
+        <span class="spacer"></span>
+        <span class="muted" style="font-size:var(--text-sm)">${this.coops.length} Kooperationen</span>
+      </div>
+      <div class="card" style="margin-top:var(--space-4)">
+        <div class="table-wrap">
+          <table class="data">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Art</th>
+                <th class="num">Wert</th>
+                <th>Code</th>
+                <th>Aktiv</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+    `;
+
+    for (const c of this.coops) {
+      const kind = c.kind === 'percent' ? 'Prozent' : 'Euro';
+      const value = c.kind === 'percent' ? `${c.value}%` : money(c.value);
+
+      html += `
+        <tr>
+          <td>${esc(c.name)}</td>
+          <td>${kind}</td>
+          <td class="num">${value}</td>
+          <td><code>${esc(c.code)}</code></td>
+          <td>${c.is_active ? '✅' : '❌'}</td>
+          <td class="actions">
+            <button class="icon-btn" data-edit="${c.id}" aria-label="Bearbeiten">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </button>
+            <button class="icon-btn" data-delete="${c.id}" aria-label="Löschen">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            </button>
+          </td>
+        </tr>
+      `;
+    }
+
+    html += `
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+
+    $("#admin-body").innerHTML = html;
+
+    $("#coop-add")?.addEventListener("click", () => this.editCoop());
+    $$("#admin-body [data-edit]").forEach((b) =>
+      b.addEventListener("click", () => this.editCoop(b.dataset.edit)),
+    );
+    $$("#admin-body [data-delete]").forEach((b) =>
+      b.addEventListener("click", () => this.deleteCoop(b.dataset.delete)),
+    );
+  },
+
+  async editCoop(id = null) {
+    const c = id ? this.coops.find((x) => x.id === id) : null;
+    const isNew = !c;
+
+    openModal({
+      title: isNew ? "Kooperation hinzufügen" : "Kooperation bearbeiten",
+      bodyHTML: `
+        <div class="field">
+          <label for="coop-name">Name</label>
+          <input id="coop-name" type="text" value="${esc(c?.name || "")}" />
+        </div>
+        <div class="field">
+          <label for="coop-kind">Art</label>
+          <select id="coop-kind">
+            <option value="percent" ${c?.kind === 'percent' ? 'selected' : ''}>Prozent (%)</option>
+            <option value="fixed" ${c?.kind === 'fixed' ? 'selected' : ''}>Fester Betrag (€)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="coop-value">Wert</label>
+          <input id="coop-value" type="number" step="0.01" value="${c?.value ?? ''}" />
+        </div>
+        <div class="field">
+          <label for="coop-code">Code</label>
+          <input id="coop-code" type="text" value="${esc(c?.code || "")}" />
+        </div>
+        <div class="field">
+          <label>
+            <input type="checkbox" id="coop-active" ${c?.is_active ? 'checked' : ''} />
+            Aktiv
+          </label>
+        </div>
+      `,
+      footHTML: `
+        <button class="btn" data-close>Abbrechen</button>
+        <button class="btn btn-primary" data-save>${isNew ? "Hinzufügen" : "Speichern"}</button>
+      `,
+      onMount(root) {
+        $("[data-save]", root).addEventListener("click", async () => {
+          const name = $("#coop-name", root).value.trim();
+          const kind = $("#coop-kind", root).value;
+          const value = parseFloat($("#coop-value", root).value) || 0;
+          const code = $("#coop-code", root).value.trim();
+          const is_active = $("#coop-active", root).checked;
+
+          if (!name || !code) {
+            toast("Name und Code dürfen nicht leer sein", "error");
+            return;
+          }
+
+          try {
+            if (isNew) {
+              await DB.createCoop({ name, kind, value, code, is_active });
+            } else {
+              await DB.updateCoop(c.id, { name, kind, value, code, is_active });
+            }
+            closeModal();
+            await Admin.loadTab();
+            toast(isNew ? "Kooperation hinzugefügt" : "Kooperation gespeichert");
+          } catch (err) {
+            fail(err);
+          }
+        });
+      },
+    });
+  },
+
+  async deleteCoop(id) {
+    const c = this.coops.find((x) => x.id === id);
+    if (!c) return;
+
+    const ok = await confirmDialog(
+      "Kooperation löschen?",
+      `"${c.name}" wird endgültig gelöscht.`,
+      "Löschen",
+    );
+    if (!ok) return;
+
+    try {
+      await DB.deleteCoop(id);
+      await this.loadTab();
+      toast("Kooperation gelöscht");
+    } catch (err) {
+      fail(err);
+    }
+  },
+
+  /* --------------------------------------------------------------------------
+     Personal
+     -------------------------------------------------------------------------- */
 
   renderStaff() {
-    $("#admin-body").innerHTML = `
-      <div
-        class="row"
-        style="margin-bottom:var(--space-4)"
-      >
-        <button
-          class="btn btn-primary"
-          data-new-staff
-        >
-          + Neuer Mitarbeiter
-        </button>
-
-        <span
-          class="muted"
-          style="font-size:var(--text-sm)"
-        >
-          Der PIN dient zum Anmelden an der Kasse.
-        </span>
+    let html = `
+      <div class="toolbar">
+        <button class="btn btn-primary" id="staff-add">+ Mitarbeiter</button>
+        <span class="spacer"></span>
+        <span class="muted" style="font-size:var(--text-sm)">${this.staff.length} Mitarbeiter</span>
       </div>
-
-      <div class="card">
+      <div class="card" style="margin-top:var(--space-4)">
         <div class="table-wrap">
           <table class="data">
             <thead>
@@ -1592,1060 +710,389 @@ const Admin = {
                 <th>Name</th>
                 <th>Rolle</th>
                 <th>PIN</th>
-                <th>Status</th>
+                <th>Aktiv</th>
                 <th></th>
               </tr>
             </thead>
-
             <tbody>
-              ${this.staff
-                .map(
-                  (s) => `<tr>
-                <td class="strong">
-                  ${esc(s.name)}
-                </td>
+    `;
 
-                <td class="muted">
-                  ${
-                    s.role === "admin"
-                      ? "Admin"
-                      : "Kasse"
-                  }
-                </td>
+    for (const s of this.staff) {
+      const roleNames = { admin: 'Admin', service: 'Service', lager: 'Lager', kasse: 'Kasse' };
+      const role = roleNames[s.role] || s.role;
 
-                <td class="muted">
-                  ••••
-                </td>
+      html += `
+        <tr>
+          <td>${esc(s.name)}</td>
+          <td>${role}</td>
+          <td><code>${esc(s.pin || "—")}</code></td>
+          <td>${s.is_active ? '✅' : '❌'}</td>
+          <td class="actions">
+            <button class="icon-btn" data-edit="${s.id}" aria-label="Bearbeiten">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </button>
+            <button class="icon-btn" data-delete="${s.id}" aria-label="Löschen">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            </button>
+          </td>
+        </tr>
+      `;
+    }
 
-                <td>
-                  <span
-                    class="tag ${
-                      s.is_active ? "ok" : ""
-                    }"
-                  >
-                    ${
-                      s.is_active
-                        ? "Aktiv"
-                        : "Inaktiv"
-                    }
-                  </span>
-                </td>
-
-                <td>
-                  <div
-                    class="row"
-                    style="gap:var(--space-2);flex-wrap:nowrap"
-                  >
-                    <button
-                      class="btn btn-sm"
-                      data-edit-staff="${s.id}"
-                    >
-                      Bearbeiten
-                    </button>
-
-                    <button
-                      class="btn btn-sm btn-danger"
-                      data-del-staff="${s.id}"
-                    >
-                      Löschen
-                    </button>
-                  </div>
-                </td>
-              </tr>`,
-                )
-                .join("")}
+    html += `
             </tbody>
           </table>
         </div>
-      </div>`;
+      </div>
+    `;
+
+    $("#admin-body").innerHTML = html;
+
+    $("#staff-add")?.addEventListener("click", () => this.editStaff());
+    $$("#admin-body [data-edit]").forEach((b) =>
+      b.addEventListener("click", () => this.editStaff(b.dataset.edit)),
+    );
+    $$("#admin-body [data-delete]").forEach((b) =>
+      b.addEventListener("click", () => this.deleteStaff(b.dataset.delete)),
+    );
   },
 
-  staffForm(s = null) {
-    openModal({
-      title: s
-        ? "Mitarbeiter bearbeiten"
-        : "Neuer Mitarbeiter",
+  async editStaff(id = null) {
+    const s = id ? this.staff.find((x) => x.id === id) : null;
+    const isNew = !s;
 
+    openModal({
+      title: isNew ? "Mitarbeiter hinzufügen" : "Mitarbeiter bearbeiten",
       bodyHTML: `
         <div class="field">
-          <label for="s-name">Name</label>
-
-          <input
-            class="input"
-            id="s-name"
-            value="${esc(s?.name || "")}"
-            placeholder="z. B. Ali"
-          >
+          <label for="staff-name">Name</label>
+          <input id="staff-name" type="text" value="${esc(s?.name || "")}" />
         </div>
-
         <div class="field">
-          <label for="s-pin">
-            PIN (4 Ziffern)
+          <label for="staff-role">Rolle</label>
+          <select id="staff-role">
+            <option value="admin" ${s?.role === 'admin' ? 'selected' : ''}>Admin</option>
+            <option value="service" ${s?.role === 'service' ? 'selected' : ''}>Serviceleitung</option>
+            <option value="lager" ${s?.role === 'lager' ? 'selected' : ''}>Lager</option>
+            <option value="kasse" ${s?.role === 'kasse' ? 'selected' : ''}>Kasse</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="staff-pin">PIN (4 Ziffern)</label>
+          <input id="staff-pin" type="text" maxlength="4" pattern="[0-9]{4}" value="${esc(s?.pin || "")}" />
+        </div>
+        <div class="field">
+          <label>
+            <input type="checkbox" id="staff-active" ${s?.is_active ? 'checked' : ''} />
+            Aktiv
           </label>
-
-          <input
-            class="input"
-            id="s-pin"
-            inputmode="numeric"
-            maxlength="4"
-            value="${esc(s?.pin || "")}"
-            placeholder="1234"
-          >
-        </div>
-
-        <div class="field">
-          <label for="s-role">Rolle</label>
-
-          <select class="select" id="s-role">
-            <option
-              value="kasse"
-              ${s?.role !== "admin" ? "selected" : ""}
-            >
-              Kasse — nur kassieren
-            </option>
-
-            <option
-              value="admin"
-              ${s?.role === "admin" ? "selected" : ""}
-            >
-              Admin — Verwaltung und Storno
-            </option>
-          </select>
-        </div>
-
-        <div class="field">
-          <label for="s-active">Status</label>
-
-          <select class="select" id="s-active">
-            <option
-              value="1"
-              ${s?.is_active !== false ? "selected" : ""}
-            >
-              Aktiv
-            </option>
-
-            <option
-              value="0"
-              ${s?.is_active === false ? "selected" : ""}
-            >
-              Inaktiv
-            </option>
-          </select>
         </div>
       `,
-
       footHTML: `
-        <button class="btn" data-close>
-          Abbrechen
-        </button>
-
-        <button
-          class="btn btn-primary"
-          id="s-save"
-        >
-          Speichern
-        </button>
+        <button class="btn" data-close>Abbrechen</button>
+        <button class="btn btn-primary" data-save>${isNew ? "Hinzufügen" : "Speichern"}</button>
       `,
+      onMount(root) {
+        $("[data-save]", root).addEventListener("click", async () => {
+          const name = $("#staff-name", root).value.trim();
+          const role = $("#staff-role", root).value;
+          const pin = $("#staff-pin", root).value.trim();
+          const is_active = $("#staff-active", root).checked;
 
-      onMount: (root) => {
-        $("#s-save", root).addEventListener(
-          "click",
-          async () => {
-            const pin =
-              $("#s-pin", root).value.trim();
+          if (!name) {
+            toast("Name darf nicht leer sein", "error");
+            return;
+          }
 
-            const payload = {
-              name: $("#s-name", root).value.trim(),
-              pin,
-              role: $("#s-role", root).value,
-              is_active:
-                $("#s-active", root).value === "1",
-            };
+          if (!/^[0-9]{4}$/.test(pin)) {
+            toast("PIN muss 4 Ziffern sein", "error");
+            return;
+          }
 
-            if (!payload.name) {
-              return toast(
-                "Bitte einen Namen eingeben",
-                "error",
-              );
+          try {
+            if (isNew) {
+              await DB.createStaff({ name, role, pin, is_active });
+            } else {
+              await DB.updateStaff(s.id, { name, role, pin, is_active });
             }
-
-            if (!/^\d{4}$/.test(pin)) {
-              return toast(
-                "Der PIN muss aus 4 Ziffern bestehen",
-                "error",
-              );
-            }
-
-            try {
-              if (s) {
-                await DB.updateStaff(
-                  s.id,
-                  payload,
-                );
-              } else {
-                await DB.createStaff(payload);
-              }
-
-              closeModal();
-              toast("Gespeichert");
-
-              State.staff =
-                await DB.listStaff(true);
-
-              await this.loadTab();
-            } catch (err) {
-              fail(err);
-            }
-          },
-        );
+            closeModal();
+            await Admin.loadTab();
+            toast(isNew ? "Mitarbeiter hinzugefügt" : "Mitarbeiter gespeichert");
+          } catch (err) {
+            fail(err);
+          }
+        });
       },
     });
   },
 
-  /* ---------- Einstellungen ---------- */
+  async deleteStaff(id) {
+    const s = this.staff.find((x) => x.id === id);
+    if (!s) return;
+
+    const ok = await confirmDialog(
+      "Mitarbeiter löschen?",
+      `"${s.name}" wird endgültig gelöscht.`,
+      "Löschen",
+    );
+    if (!ok) return;
+
+    try {
+      await DB.deleteStaff(id);
+      await this.loadTab();
+      toast("Mitarbeiter gelöscht");
+    } catch (err) {
+      fail(err);
+    }
+  },
+
+  /* --------------------------------------------------------------------------
+     Dienstzeiten
+     -------------------------------------------------------------------------- */
+
+  renderShifts() {
+    const byStaff = {};
+    for (const shift of this.shifts) {
+      if (!byStaff[shift.staff_id]) byStaff[shift.staff_id] = [];
+      byStaff[shift.staff_id].push(shift);
+    }
+
+    let html = `
+      <div class="toolbar">
+        <span class="muted" style="font-size:var(--text-sm)">
+          ${this.shiftRange} Tage · ${this.shifts.length} Schichten
+        </span>
+      </div>
+      <div class="card" style="margin-top:var(--space-4)">
+        <div class="table-wrap">
+          <table class="data">
+            <thead>
+              <tr>
+                <th>Mitarbeiter</th>
+                <th>Schichten</th>
+                <th class="num">Gesamtzeit</th>
+                <th>Details</th>
+              </tr>
+            </thead>
+            <tbody>
+    `;
+
+    for (const [staffId, shifts] of Object.entries(byStaff)) {
+      const staff = this.staff.find((s) => s.id === staffId);
+      const name = staff?.name || 'Unbekannt';
+      const totalSeconds = shifts.reduce((acc, s) => {
+        const start = new Date(s.started_at).getTime();
+        const end = s.ended_at ? new Date(s.ended_at).getTime() : Date.now();
+        return acc + (end - start) / 1000;
+      }, 0);
+
+      html += `
+        <tr>
+          <td>${esc(name)}</td>
+          <td class="num">${shifts.length}</td>
+          <td class="num">${fmtDuration(totalSeconds)}</td>
+          <td>
+            <button class="btn btn-sm" data-show="${staffId}">Anzeigen</button>
+          </td>
+        </tr>
+      `;
+    }
+
+    html += `
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+
+    $("#admin-body").innerHTML = html;
+
+    $$("#admin-body [data-show]").forEach((b) =>
+      b.addEventListener("click", () => this.showShifts(b.dataset.show)),
+    );
+  },
+
+  showShifts(staffId) {
+    const staff = this.staff.find((s) => s.id === staffId);
+    const shifts = this.shifts.filter((s) => s.staff_id === staffId).sort((a, b) => new Date(b.started_at) - new Date(a.started_at));
+
+    let html = `
+      <div class="toolbar">
+        <button class="btn" data-back>Zurück</button>
+        <span class="spacer"></span>
+        <span class="muted" style="font-size:var(--text-sm)">${esc(staff?.name || '')}</span>
+      </div>
+      <div class="card" style="margin-top:var(--space-4)">
+        <div class="table-wrap">
+          <table class="data">
+            <thead>
+              <tr>
+                <th>Start</th>
+                <th>Ende</th>
+                <th class="num">Dauer</th>
+                <th>Auto</th>
+              </tr>
+            </thead>
+            <tbody>
+    `;
+
+    for (const s of shifts) {
+      const duration = s.ended_at
+        ? fmtDuration((new Date(s.ended_at).getTime() - new Date(s.started_at).getTime()) / 1000)
+        : '—';
+
+      html += `
+        <tr>
+          <td>${fmtDateTime(s.started_at)}</td>
+          <td>${s.ended_at ? fmtDateTime(s.ended_at) : '—'}</td>
+          <td class="num">${duration}</td>
+          <td>${s.ended_auto ? '✅' : '❌'}</td>
+        </tr>
+      `;
+    }
+
+    html += `
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+
+    $("#admin-body").innerHTML = html;
+
+    $("[data-back]")?.addEventListener("click", () => {
+      this.tab = "dienstzeiten";
+      this.loadTab();
+    });
+  },
+
+  /* --------------------------------------------------------------------------
+     Einstellungen
+     -------------------------------------------------------------------------- */
 
   renderSettings() {
     const s = State.settings || {};
 
-    $("#admin-body").innerHTML = `
-      <div
-        class="card"
-        style="max-width:760px"
-      >
-        <div class="form-grid">
-
-          <div class="field">
-            <label for="set-name">
-              Name des Imbiss
-            </label>
-
-            <input
-              class="input"
-              id="set-name"
-              value="${esc(s.shop_name || "")}"
-            >
-          </div>
-
-          <div class="field">
-            <label for="set-phone">
-              Telefon
-            </label>
-
-            <input
-              class="input"
-              id="set-phone"
-              value="${esc(s.phone || "")}"
-            >
-          </div>
-
-          <div
-            class="field"
-            style="grid-column:1/-1"
-          >
-            <label for="set-address">
-              Adresse
-            </label>
-
-            <input
-              class="input"
-              id="set-address"
-              value="${esc(s.address || "")}"
-            >
-          </div>
-
-          <div class="field">
-            <label for="set-tax">
-              Steuernummer
-            </label>
-
-            <input
-              class="input"
-              id="set-tax"
-              value="${esc(s.tax_id || "")}"
-            >
-          </div>
-
-          <div class="field">
-            <label for="set-vat">
-              MwSt.-Satz in Prozent
-            </label>
-
-            <input
-              class="input"
-              id="set-vat"
-              type="number"
-              step="0.5"
-              min="0"
-              value="${Number(
-                s.vat_rate ?? 19,
-              )}"
-            >
-          </div>
-
-          <div
-            class="field"
-            style="grid-column:1/-1"
-          >
-            <label for="set-footer">
-              Text unten auf dem Bon
-            </label>
-
-            <input
-              class="input"
-              id="set-footer"
-              value="${esc(
-                s.receipt_footer || "",
-              )}"
-            >
-          </div>
-
+    let html = `
+      <div class="card">
+        <div class="card-head">
+          <span class="card-title">Allgemein</span>
         </div>
-
-        <div class="form-actions">
-          <button
-            class="btn btn-primary"
-            id="set-save"
-          >
-            Einstellungen speichern
-          </button>
+        <div class="card-body">
+          <div class="field">
+            <label for="set-name">Name des Geschäfts</label>
+            <input id="set-name" type="text" value="${esc(s.shop_name || '')}" />
+          </div>
+          <div class="field">
+            <label for="set-street">Straße</label>
+            <input id="set-street" type="text" value="${esc(s.street || '')}" />
+          </div>
+          <div class="field">
+            <label for="set-city">Stadt</label>
+            <input id="set-city" type="text" value="${esc(s.city || '')}" />
+          </div>
         </div>
-      </div>`;
+        <div class="card-foot">
+          <button class="btn btn-primary" id="set-save">Speichern</button>
+        </div>
+      </div>
+    `;
 
-    $("#set-save").addEventListener(
-      "click",
-      async () => {
-        try {
-          State.settings =
-            await DB.saveSettings({
-              shop_name:
-                $("#set-name").value.trim() ||
-                "Masora Döner",
+    $("#admin-body").innerHTML = html;
 
-              phone:
-                $("#set-phone").value.trim(),
+    $("#set-save")?.addEventListener("click", async () => {
+      const shop_name = $("#set-name").value.trim();
+      const street = $("#set-street").value.trim();
+      const city = $("#set-city").value.trim();
 
-              address:
-                $("#set-address").value.trim(),
-
-              tax_id:
-                $("#set-tax").value.trim(),
-
-              vat_rate:
-                num($("#set-vat").value),
-
-              receipt_footer:
-                $("#set-footer").value.trim(),
-            });
-
-          App.paintBrand();
-          Kasse.renderCart();
-
-          toast("Einstellungen gespeichert");
-        } catch (err) {
-          fail(err);
-        }
-      },
-    );
-  },
-
-  /* ---------- Tagesabschluss ---------- */
-
-  renderClosing(orders) {
-    const valid = orders.filter(
-      (o) => o.status !== "storniert",
-    );
-
-    const sum = (arr) =>
-      num(
-        arr.reduce(
-          (s, o) => s + Number(o.total),
-          0,
-        ),
-      );
-
-    const cash = valid.filter(
-      (o) => o.payment_method === "bar",
-    );
-
-    const card = valid.filter(
-      (o) => o.payment_method === "karte",
-    );
-
-    const rate = Number(
-      State.settings?.vat_rate ?? 19,
-    );
-
-    const revenue = sum(valid);
-
-    const vat = num(
-      revenue -
-        revenue / (1 + rate / 100),
-    );
-
-    const discounts = num(
-      valid.reduce(
-        (s, o) =>
-          s + Number(o.discount_amount),
-        0,
-      ),
-    );
-
-    const perProduct = {};
-
-    valid.forEach((o) =>
-      (o.items || []).forEach((i) => {
-        if (!perProduct[i.name]) {
-          perProduct[i.name] = {
-            qty: 0,
-            total: 0,
-          };
-        }
-
-        perProduct[i.name].qty +=
-          Number(i.qty);
-
-        perProduct[i.name].total = num(
-          perProduct[i.name].total +
-            Number(i.line_total),
-        );
-      }),
-    );
-
-    const top = Object.entries(
-      perProduct,
-    ).sort(
-      (a, b) => b[1].qty - a[1].qty,
-    );
-
-    // Umsatz je Mitarbeiter
-    const perStaff = new Map();
-
-    valid.forEach((o) => {
-      const key =
-        o.staff_id ||
-        o.staff_name ||
-        "unbekannt";
-
-      if (!perStaff.has(key)) {
-        perStaff.set(key, {
-          name:
-            o.staff_name ||
-            "Ohne Zuordnung",
-
-          total: 0,
-          count: 0,
-          cash: 0,
-          card: 0,
-        });
-      }
-
-      const e = perStaff.get(key);
-
-      e.count += 1;
-
-      e.total = num(
-        e.total + Number(o.total),
-      );
-
-      if (o.payment_method === "bar") {
-        e.cash = num(
-          e.cash + Number(o.total),
-        );
-      } else {
-        e.card = num(
-          e.card + Number(o.total),
-        );
+      try {
+        await DB.updateSettings({ shop_name, street, city });
+        State.settings = await DB.getSettings();
+        App.paintBrand();
+        toast("Einstellungen gespeichert");
+      } catch (err) {
+        fail(err);
       }
     });
-
-    const staffRows = [
-      ...perStaff.values(),
-    ].sort(
-      (a, b) => b.total - a.total,
-    );
-
-    const today =
-      new Date().toLocaleDateString(
-        "de-DE",
-        {
-          weekday: "long",
-          day: "2-digit",
-          month: "long",
-          year: "numeric",
-        },
-      );
-
-    $("#admin-body").innerHTML = `
-      <div class="stack">
-
-        <div>
-          <div class="section-title">
-            Tagesabschluss · ${esc(today)}
-          </div>
-
-          <div
-            class="stats"
-            style="margin-bottom:0"
-          >
-            <div class="stat accent">
-              <div class="stat-label">
-                Tagesumsatz
-              </div>
-
-              <div class="stat-value">
-                ${money(revenue)}
-              </div>
-            </div>
-
-            <div class="stat">
-              <div class="stat-label">
-                Bestellungen
-              </div>
-
-              <div class="stat-value">
-                ${valid.length}
-              </div>
-            </div>
-
-            <div class="stat">
-              <div class="stat-label">
-                Bar
-              </div>
-
-              <div class="stat-value">
-                ${money(sum(cash))}
-              </div>
-            </div>
-
-            <div class="stat">
-              <div class="stat-label">
-                Karte
-              </div>
-
-              <div class="stat-value">
-                ${money(sum(card))}
-              </div>
-            </div>
-
-            <div class="stat">
-              <div class="stat-label">
-                enth. MwSt. ${rate}%
-              </div>
-
-              <div class="stat-value">
-                ${money(vat)}
-              </div>
-            </div>
-
-            <div class="stat">
-              <div class="stat-label">
-                Rabatte
-              </div>
-
-              <div class="stat-value">
-                ${money(discounts)}
-              </div>
-            </div>
-
-            <div class="stat">
-              <div class="stat-label">
-                Stornos
-              </div>
-
-              <div class="stat-value">
-                ${
-                  orders.length -
-                  valid.length
-                }
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <div class="section-title">
-            Umsatz je Mitarbeiter
-          </div>
-
-          <div class="card">
-            <div class="table-wrap">
-              <table class="data">
-                <thead>
-                  <tr>
-                    <th>Mitarbeiter</th>
-                    <th class="num">
-                      Bestellungen
-                    </th>
-                    <th class="num">
-                      Bar
-                    </th>
-                    <th class="num">
-                      Karte
-                    </th>
-                    <th class="num">
-                      Umsatz
-                    </th>
-                    <th>Anteil</th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  ${
-                    staffRows.length
-                      ? staffRows
-                          .map((e) => {
-                            const anteil =
-                              revenue > 0
-                                ? Math.round(
-                                    (e.total /
-                                      revenue) *
-                                      100,
-                                  )
-                                : 0;
-
-                            return `<tr>
-                              <td class="strong">
-                                ${esc(e.name)}
-                              </td>
-
-                              <td class="num">
-                                ${e.count}
-                              </td>
-
-                              <td class="num">
-                                ${money(e.cash)}
-                              </td>
-
-                              <td class="num">
-                                ${money(e.card)}
-                              </td>
-
-                              <td class="num strong">
-                                ${money(e.total)}
-                              </td>
-
-                              <td>
-                                <div
-                                  class="bar-track"
-                                  title="${anteil} %"
-                                >
-                                  <div
-                                    class="bar-fill"
-                                    style="width:${anteil}%"
-                                  ></div>
-                                </div>
-                              </td>
-                            </tr>`;
-                          })
-                          .join("")
-                      : `<tr>
-                          <td
-                            colspan="6"
-                            class="muted"
-                            style="padding:var(--space-8);text-align:center"
-                          >
-                            Heute hat noch niemand verkauft.
-                          </td>
-                        </tr>`
-                  }
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <div class="section-title">
-            Verkaufte Artikel
-          </div>
-
-          <div class="card">
-            <div class="table-wrap">
-              <table class="data">
-                <thead>
-                  <tr>
-                    <th>Artikel</th>
-                    <th class="num">
-                      Menge
-                    </th>
-                    <th class="num">
-                      Umsatz
-                    </th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  ${
-                    top.length
-                      ? top
-                          .map(
-                            ([name, v]) =>
-                              `<tr>
-                                <td>
-                                  ${esc(name)}
-                                </td>
-
-                                <td class="num">
-                                  ${v.qty}
-                                </td>
-
-                                <td class="num">
-                                  ${money(v.total)}
-                                </td>
-                              </tr>`,
-                          )
-                          .join("")
-                      : `<tr>
-                          <td
-                            colspan="3"
-                            class="muted"
-                            style="padding:var(--space-8);text-align:center"
-                          >
-                            Heute wurde noch nichts verkauft.
-                          </td>
-                        </tr>`
-                  }
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-      </div>`;
   },
 
-  async refreshKasse() {
-    State.products =
-      await DB.listProducts(true);
+  /* --------------------------------------------------------------------------
+     Tagesabschluss
+     -------------------------------------------------------------------------- */
 
-    State.discounts =
-      await DB.listDiscounts(true);
+  renderClosing(orders) {
+    const today = orders.filter((o) => o.status !== 'storniert');
+    const revenue = today.reduce((acc, o) => acc + (o.total || 0), 0);
+    const cash = today.filter((o) => o.payment_method === 'bar').reduce((acc, o) => acc + (o.total || 0), 0);
+    const card = today.filter((o) => o.payment_method === 'karte').reduce((acc, o) => acc + (o.total || 0), 0);
 
-    State.coops =
-      await DB.listCoops(true);
+    let html = `
+      <div class="stats" style="margin-bottom:var(--space-6)">
+        <div class="stat accent">
+          <div class="stat-label">Umsatz heute</div>
+          <div class="stat-value">${money(revenue)}</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Bar</div>
+          <div class="stat-value">${money(cash)}</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Karte</div>
+          <div class="stat-value">${money(card)}</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Bestellungen</div>
+          <div class="stat-value">${today.length}</div>
+        </div>
+      </div>
 
-    if (
-      State.coop &&
-      !State.coops.some(
-        (c) => c.id === State.coop.id,
-      )
-    ) {
-      State.coop = null;
+      <div class="card">
+        <div class="card-head">
+          <span class="card-title">Bestellungen heute</span>
+        </div>
+        <div class="table-wrap">
+          <table class="data">
+            <thead>
+              <tr>
+                <th>Zeit</th>
+                <th>Summe</th>
+                <th>Zahlung</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+    `;
+
+    for (const o of today.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))) {
+      html += `
+        <tr>
+          <td>${fmtTime(o.created_at)}</td>
+          <td class="num">${money(o.total)}</td>
+          <td>${o.payment_method === 'bar' ? 'Bar' : 'Karte'}</td>
+          <td>${o.status === 'storniert' ? '<span class="text-error">Storniert</span>' : '✅'}</td>
+        </tr>
+      `;
     }
 
-    if (
-      State.discountId &&
-      !State.discounts.some(
-        (d) =>
-          d.id === State.discountId,
-      )
-    ) {
-      State.discountId = "";
-    }
+    html += `
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
 
-    State.cart = State.cart.filter(
-      (l) =>
-        State.products.some(
-          (p) =>
-            p.id === l.product_id,
-        ),
-    );
-
-    Kasse.render();
+    $("#admin-body").innerHTML = html;
   },
-
-  /* ---------- Events ---------- */
 
   bind() {
-    $("#admin-subnav").addEventListener(
-      "click",
-      (e) => {
-        const b =
-          e.target.closest(
-            "button[data-tab]",
-          );
-
-        if (!b) return;
-
+    $("#admin-subnav").addEventListener("click", (e) => {
+      const b = e.target.closest("button[data-tab]");
+      if (b) {
         this.tab = b.dataset.tab;
-
         this.paintTabs();
         this.loadTab();
-      },
-    );
-
-    $("#admin-body").addEventListener(
-      "click",
-      async (e) => {
-        const t = e.target;
-
-        if (
-          t.closest("[data-new-product]")
-        ) {
-          return this.productForm();
-        }
-
-        if (
-          t.closest("[data-new-discount]")
-        ) {
-          return this.discountForm();
-        }
-
-        if (
-          t.closest("[data-new-staff]")
-        ) {
-          return this.staffForm();
-        }
-
-        if (
-          t.closest("[data-new-coop]")
-        ) {
-          return this.coopForm();
-        }
-
-        const ec =
-          t.closest("[data-edit-coop]");
-
-        if (ec) {
-          return this.coopForm(
-            this.coops.find(
-              (c) =>
-                c.id ===
-                ec.dataset.editCoop,
-            ),
-          );
-        }
-
-        const sb =
-          t.closest("[data-stock-book]");
-
-        if (sb) {
-          const p =
-            this.products.find(
-              (x) =>
-                x.id ===
-                sb.dataset.stockBook,
-            );
-
-          if (p) {
-            this.stockForm(p);
-          }
-
-          return;
-        }
-
-        const dc =
-          t.closest("[data-del-coop]");
-
-        if (dc) {
-          const c =
-            this.coops.find(
-              (x) =>
-                x.id ===
-                dc.dataset.delCoop,
-            );
-
-          if (
-            c &&
-            (await confirmDialog(
-              "Kooperation löschen?",
-              `„${c.name}" wird entfernt. Das Codewort „${c.code}" gilt danach nicht mehr.`,
-              "Löschen",
-            ))
-          ) {
-            try {
-              await DB.deleteCoop(c.id);
-
-              toast(
-                "Kooperation gelöscht",
-              );
-
-              await this.loadTab();
-              await this.refreshKasse();
-            } catch (err) {
-              fail(err);
-            }
-          }
-
-          return;
-        }
-
-        const ep =
-          t.closest(
-            "[data-edit-product]",
-          );
-
-        if (ep) {
-          return this.productForm(
-            this.products.find(
-              (p) =>
-                p.id ===
-                ep.dataset.editProduct,
-            ),
-          );
-        }
-
-        const ed =
-          t.closest(
-            "[data-edit-discount]",
-          );
-
-        if (ed) {
-          return this.discountForm(
-            this.discounts.find(
-              (d) =>
-                d.id ===
-                ed.dataset.editDiscount,
-            ),
-          );
-        }
-
-        const es =
-          t.closest(
-            "[data-edit-staff]",
-          );
-
-        if (es) {
-          return this.staffForm(
-            this.staff.find(
-              (s) =>
-                s.id ===
-                es.dataset.editStaff,
-            ),
-          );
-        }
-
-        const dp =
-          t.closest(
-            "[data-del-product]",
-          );
-
-        if (dp) {
-          const p =
-            this.products.find(
-              (x) =>
-                x.id ===
-                dp.dataset.delProduct,
-            );
-
-          if (
-            p &&
-            (await confirmDialog(
-              "Produkt löschen?",
-              `„${p.name}" wird endgültig entfernt.`,
-              "Löschen",
-            ))
-          ) {
-            try {
-              await DB.deleteProduct(
-                p.id,
-              );
-
-              toast(
-                "Produkt gelöscht",
-              );
-
-              await this.loadTab();
-              await this.refreshKasse();
-            } catch (err) {
-              fail(err);
-            }
-          }
-
-          return;
-        }
-
-        const dd =
-          t.closest(
-            "[data-del-discount]",
-          );
-
-        if (dd) {
-          const d =
-            this.discounts.find(
-              (x) =>
-                x.id ===
-                dd.dataset.delDiscount,
-            );
-
-          if (
-            d &&
-            (await confirmDialog(
-              "Rabatt löschen?",
-              `„${d.name}" wird entfernt.`,
-              "Löschen",
-            ))
-          ) {
-            try {
-              await DB.deleteDiscount(
-                d.id,
-              );
-
-              toast("Rabatt gelöscht");
-
-              await this.loadTab();
-              await this.refreshKasse();
-            } catch (err) {
-              fail(err);
-            }
-          }
-
-          return;
-        }
-
-        const ds =
-          t.closest(
-            "[data-del-staff]",
-          );
-
-        if (ds) {
-          const s =
-            this.staff.find(
-              (x) =>
-                x.id ===
-                ds.dataset.delStaff,
-            );
-
-          if (!s) return;
-
-          if (
-            s.id === State.user?.id
-          ) {
-            return toast(
-              "Das eigene Konto kann nicht gelöscht werden",
-              "error",
-            );
-          }
-
-          if (
-            await confirmDialog(
-              "Mitarbeiter löschen?",
-              `„${s.name}" wird entfernt.`,
-              "Löschen",
-            )
-          ) {
-            try {
-              await DB.deleteStaff(
-                s.id,
-              );
-
-              toast(
-                "Mitarbeiter gelöscht",
-              );
-
-              State.staff =
-                await DB.listStaff(
-                  true,
-                );
-
-              await this.loadTab();
-            } catch (err) {
-              fail(err);
-            }
-          }
-        }
-      },
-    );
+      }
+    });
   },
 };
 
