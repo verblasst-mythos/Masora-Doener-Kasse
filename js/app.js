@@ -547,8 +547,13 @@ const App = {
     );
   },
 };
+
+/* ==========================================================================
+   Discord-Quittung über Cloudflare Worker
+   ========================================================================== */
+
 const DISCORD_WORKER_URL =
-  "https://masora-doener-kasse1.finnwoschech.workers.dev/receipt";
+  "https://masora-doener-kasse-worker.finnwoschech.workers.dev/receipt";
 
 async function sendReceiptToDiscord(order) {
   if (!order) {
@@ -603,7 +608,6 @@ async function sendReceiptToDiscord(order) {
 }
 
 window.sendReceiptToDiscord = sendReceiptToDiscord;
-
 
 window.App = App;
 window.State = State;
