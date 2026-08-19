@@ -1,19 +1,4 @@
-/* ==========================================================================
-   Verwaltung: Produkte, Rabatte, Personal, Einstellungen, Tagesabschluss
-   ========================================================================== */
-"use strict";
-
-const Admin = {
-  tab: "produkte",
-  products: [],
-  discounts: [],
-  coops: [],
-  staff: [],
-  moves: [],
-  shifts: [],
-  shiftRange: 7, // Tage für die Dienstzeiten-Übersicht
-
-  open() {
+open() {
   // Tabs basierend auf Rolle ein-/ausblenden
   const role = State.userRole || State.user?.role || 'kasse';
   
@@ -39,69 +24,13 @@ const Admin = {
   // Ersten sichtbaren Tab aktivieren
   const firstVisible = $('#admin-subnav button:not(.hidden)');
   if (firstVisible) {
-    firstVisible.click();
+    this.tab = firstVisible.dataset.tab;
   }
   
-  // ... Rest der Funktion (falls vorhanden)
+  // Tabs malen und laden
+  this.paintTabs();
+  this.loadTab();
 }
-
-  paintTabs() {
-    $$("#admin-subnav button").forEach((b) =>
-      b.setAttribute("aria-current", String(b.dataset.tab === this.tab)),
-    );
-  },
-
-  busy(text = "Lade …") {
-    $("#admin-body").innerHTML =
-      `<p class="muted" style="font-size:var(--text-sm)">${esc(text)}</p>`;
-  },
-
-  async loadTab() {
-    this.busy();
-    try {
-      if (this.tab === "produkte") {
-        this.products = await DB.listProducts(false);
-        this.renderProducts();
-      } else if (this.tab === "rabatte") {
-        this.discounts = await DB.listDiscounts(false);
-        this.renderDiscounts();
-      } else if (this.tab === "personal") {
-        this.staff = await DB.listStaff(false);
-        this.renderStaff();
-      } else if (this.tab === "kooperationen") {
-        this.coops = await DB.listCoops(false);
-        this.renderCoops();
-      } else if (this.tab === "lager") {
-        const [products, moves] = await Promise.all([
-          DB.listProducts(false),
-          DB.listStockMoves({ limit: 40 }),
-        ]);
-        this.products = products;
-        this.moves = moves;
-        this.renderStock();
-      } else if (this.tab === "dienstzeiten") {
-        const from = startOfDay(-(this.shiftRange - 1)).toISOString();
-        const [shifts, staff] = await Promise.all([
-          DB.listShifts({ from }),
-          DB.listStaff(false),
-        ]);
-        this.shifts = shifts;
-        this.staff = staff;
-        this.renderShifts();
-      } else if (this.tab === "einstellungen") {
-        State.settings = await DB.getSettings();
-        this.renderSettings();
-      } else if (this.tab === "abschluss") {
-        this.renderClosing(
-          await DB.listOrders({ from: startOfDay(0).toISOString() }),
-        );
-      }
-    } catch (err) {
-      fail(err);
-      $("#admin-body").innerHTML =
-        `<p class="muted" style="font-size:var(--text-sm)">Konnte nicht geladen werden.</p>`;
-    }
-  },
 
   /* ---------- Produkte ---------- */
 
