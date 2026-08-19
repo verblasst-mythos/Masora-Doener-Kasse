@@ -2,7 +2,10 @@
 <html lang="de" data-theme="dark">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1"
+    />
     <title>Masora Döner — Kasse</title>
     <meta
       name="description"
@@ -19,7 +22,13 @@
       <div class="login-card">
         <div class="brand">
           <!-- Logo: Dönerspieß -->
-          <svg width="44" height="44" viewBox="0 0 32 32" aria-label="Masora Döner Logo" role="img">
+          <svg
+            width="44"
+            height="44"
+            viewBox="0 0 32 32"
+            aria-label="Masora Döner Logo"
+            role="img"
+          >
             <path
               d="M16 2.4v3.4M16 27.4v2.6"
               fill="none"
@@ -45,7 +54,9 @@
             <div class="brand-sub">Kassensystem</div>
           </div>
         </div>
-        <p class="login-hint" id="login-hint">PIN eingeben, um die Kasse zu öffnen</p>
+        <p class="login-hint" id="login-hint">
+          PIN eingeben, um die Kasse zu öffnen
+        </p>
         <div class="pin-display" id="pin-display">
           <span class="pin-dot"></span><span class="pin-dot"></span>
           <span class="pin-dot"></span><span class="pin-dot"></span>
@@ -117,16 +128,37 @@
         <nav class="nav" id="nav" aria-label="Hauptbereiche">
           <button data-view="kasse" aria-current="true">Kasse</button>
           <button data-view="bestellungen">Bestellungen</button>
-          <button data-view="verwaltung" id="nav-admin" class="hidden">Verwaltung</button>
+          <button data-view="verwaltung" id="nav-admin" class="hidden">
+            Verwaltung
+          </button>
         </nav>
 
         <div class="topbar-right">
+          <button
+            class="duty-chip off"
+            id="duty-chip"
+            type="button"
+            aria-label="Dienststatus"
+          >
+            <span class="duty-dot"></span>
+            <span class="duty-text">
+              <span class="duty-state" id="duty-state">Nicht im Dienst</span>
+              <span class="duty-since" id="duty-since"></span>
+            </span>
+          </button>
+          <button class="btn btn-sm" id="duty-toggle">Einstempeln</button>
+
           <span class="user-chip">
             <span class="dot"></span>
             <span id="user-name">—</span>
             <span class="muted" id="user-role"></span>
+            <span class="session-left" id="session-left"></span>
           </span>
-          <button class="icon-btn" data-theme-toggle aria-label="Design wechseln"></button>
+          <button
+            class="icon-btn"
+            data-theme-toggle
+            aria-label="Design wechseln"
+          ></button>
           <button class="icon-btn" id="logout" aria-label="Abmelden">
             <svg
               width="18"
@@ -138,7 +170,9 @@
               stroke-linecap="round"
               stroke-linejoin="round"
             >
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
+              <path
+                d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"
+              />
             </svg>
           </button>
         </div>
@@ -148,7 +182,12 @@
         <!-- ---------------- Kasse ---------------- -->
         <section class="view" data-view-panel="kasse">
           <div class="pos-left">
-            <div class="cat-bar" id="cat-bar" role="group" aria-label="Kategorien"></div>
+            <div
+              class="cat-bar"
+              id="cat-bar"
+              role="group"
+              aria-label="Kategorien"
+            ></div>
             <div class="product-grid scroll" id="product-grid"></div>
           </div>
 
@@ -156,7 +195,11 @@
             <div class="cart-head">
               <span class="cart-title">Bestellung</span>
               <span class="badge" id="cart-count">0</span>
-              <button class="btn btn-sm btn-ghost" id="cart-clear" style="margin-left:auto">
+              <button
+                class="btn btn-sm btn-ghost"
+                id="cart-clear"
+                style="margin-left: auto"
+              >
                 Leeren
               </button>
             </div>
@@ -164,6 +207,15 @@
             <div class="cart-items scroll" id="cart-items"></div>
 
             <div class="cart-foot">
+              <div id="duty-banner" class="duty-banner hidden">
+                <span
+                  >Du bist nicht im Dienst — Bestellungen sind gesperrt.</span
+                >
+                <button class="btn btn-sm btn-primary" id="duty-banner-btn">
+                  Jetzt einstempeln
+                </button>
+              </div>
+
               <div class="field">
                 <label for="discount-select">Rabatt</label>
                 <select class="select" id="discount-select">
@@ -171,11 +223,18 @@
                 </select>
               </div>
 
-              <div class="sum-row"><span>Zwischensumme</span><span id="sum-subtotal">0,00 €</span></div>
-              <div class="sum-row discount hidden" id="row-discount">
-                <span>Rabatt</span><span id="sum-discount">0,00 €</span>
+              <div id="coop-box" class="coop-box"></div>
+
+              <div class="sum-row">
+                <span>Zwischensumme</span><span id="sum-subtotal">0,00 €</span>
               </div>
-              <div class="sum-row"><span>enthaltene MwSt.</span><span id="sum-vat">0,00 €</span></div>
+              <div class="sum-row discount hidden" id="row-discount">
+                <span id="label-discount">Rabatt</span
+                ><span id="sum-discount">0,00 €</span>
+              </div>
+              <div class="sum-row">
+                <span>enthaltene MwSt.</span><span id="sum-vat">0,00 €</span>
+              </div>
 
               <div class="sum-total">
                 <span class="sum-total-label">Summe</span>
@@ -184,7 +243,9 @@
 
               <div class="pay-split">
                 <button class="btn" id="pay-card" disabled>Karte</button>
-                <button class="btn btn-primary" id="pay-cash" disabled>Bar kassieren</button>
+                <button class="btn btn-primary" id="pay-cash" disabled>
+                  Bar kassieren
+                </button>
               </div>
             </div>
           </aside>
@@ -200,7 +261,19 @@
                 <button data-range="week">7 Tage</button>
                 <button data-range="all">Alle</button>
               </div>
+              <select
+                class="select select-sm"
+                id="o-staff"
+                aria-label="Mitarbeiter filtern"
+              >
+                <option value="">Alle Mitarbeiter</option>
+              </select>
               <span class="spacer"></span>
+              <span
+                class="muted"
+                id="o-scope"
+                style="font-size: var(--text-sm)"
+              ></span>
               <button class="btn btn-sm" id="o-reload">Aktualisieren</button>
             </div>
 
@@ -246,6 +319,35 @@
                   </table>
                 </div>
               </div>
+
+              <div
+                class="card hidden"
+                id="o-perstaff"
+                style="margin-top: var(--space-6)"
+              >
+                <div class="card-head">
+                  <span class="card-title">Umsatz je Mitarbeiter</span>
+                  <span class="muted" style="font-size: var(--text-sm)"
+                    >Nur für den Chef sichtbar</span
+                  >
+                </div>
+                <div class="table-wrap">
+                  <table class="data">
+                    <thead>
+                      <tr>
+                        <th>Mitarbeiter</th>
+                        <th class="num">Bons</th>
+                        <th class="num">Bar</th>
+                        <th class="num">Karte</th>
+                        <th class="num">Umsatz</th>
+                        <th>Anteil</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody id="o-perstaff-body"></tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -256,9 +358,14 @@
             <div class="page-head">
               <h1 class="page-title">Verwaltung</h1>
               <div class="subnav" id="admin-subnav">
-                <button data-tab="produkte" aria-current="true">Produkte</button>
+                <button data-tab="produkte" aria-current="true">
+                  Produkte
+                </button>
+                <button data-tab="lager">Lager</button>
                 <button data-tab="rabatte">Rabatte</button>
+                <button data-tab="kooperationen">Kooperationen</button>
                 <button data-tab="personal">Personal</button>
+                <button data-tab="dienstzeiten">Dienstzeiten</button>
                 <button data-tab="einstellungen">Einstellungen</button>
                 <button data-tab="abschluss">Tagesabschluss</button>
               </div>

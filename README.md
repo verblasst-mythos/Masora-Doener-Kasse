@@ -10,11 +10,21 @@ Alle Daten liegen dauerhaft in **Supabase** — nichts geht beim Neuladen oder G
 - PIN-Feld mit Zifferntastatur, auch über die Tastatur bedienbar
 - Zwei Rollen: `admin` (alles) und `kasse` (Kasse + Bestellungen)
 
+**Stempeluhr**
+
+- Ein- und Ausstempeln direkt in der Kopfzeile, Status immer sichtbar
+- Ohne Dienst lässt sich nichts kassieren — es kommt ein Hinweis mit Einstempel-Taste
+- Die Kasse meldet sich **60 Minuten nach dem Anmelden** automatisch ab und stempelt dabei aus
+- Countdown in der Kopfzeile, Warnung 5 Minuten vorher
+- Meldet man sich innerhalb von 15 Minuten wieder an, wird die Schicht fortgesetzt statt neu begonnen
+
 **Kasse**
 
 - Kategorien als Reiter, Produkte als große Touch-Kacheln
+- Lagerstand auf jeder Kachel, ausverkaufte Artikel sind gesperrt
 - Warenkorb mit Menge +/−, Einzelposten löschen, komplett leeren
 - Rabatte (Prozent oder fester Betrag) aus der Datenbank
+- Kooperationen: Rabatt nur nach Eingabe des Codeworts
 - Barzahlung mit Schnellwahl-Beträgen, automatischem Rückgeld und Sperre bei zu wenig Geld
 - Kartenzahlung
 - Bon im 40-Zeichen-Format, direkt druckbar
@@ -22,17 +32,22 @@ Alle Daten liegen dauerhaft in **Supabase** — nichts geht beim Neuladen oder G
 **Bestellungen**
 
 - Filter: Heute / 7 Tage / Alle
+- Zusätzlich nach **einzelnen Mitarbeitern** filtern
 - Kennzahlen: Umsatz, Anzahl, Ø pro Bon, Bar, Karte
+- Tabelle „Umsatz je Mitarbeiter" (nur Admin) mit Anteil am Gesamtumsatz
 - Bon erneut drucken
-- Storno (nur Admin) — der Bon bleibt gespeichert, zählt aber nicht mehr im Umsatz
+- Storno (nur Admin) — der Bon bleibt gespeichert, zählt nicht mehr im Umsatz und die Artikel gehen zurück ins Lager
 
 **Verwaltung (nur Admin)**
 
-- Produkte anlegen, bearbeiten, löschen, aktiv/inaktiv schalten
+- Produkte anlegen, bearbeiten, löschen, aktiv/inaktiv schalten — inklusive Bestand und Mindestbestand
+- **Lager**: Warenwert, Nachbestell-Liste, Wareneingang, Schwund, Korrektur nach Zählung, Bewegungsverlauf
 - Rabatte pflegen
+- **Kooperationen**: Name, Prozent oder fester Betrag, Codewort, aktiv/inaktiv
 - Personal und PINs pflegen
+- **Dienstzeiten**: wer war wann im Dienst, Dauer je Schicht, Summe je Mitarbeiter, Zeitraum Heute / 7 / 30 Tage
 - Einstellungen: Name, Adresse, Telefon, Steuernummer, MwSt.-Satz, Bon-Fußtext
-- Tagesabschluss (Z-Bericht) mit Umsatz, Zahlarten, enthaltener MwSt., Rabatten, Stornos und Artikelstatistik
+- Tagesabschluss (Z-Bericht) mit Umsatz, Zahlarten, enthaltener MwSt., Rabatten, Stornos, Umsatz je Mitarbeiter und Artikelstatistik
 
 **Sonstiges**
 
@@ -47,10 +62,24 @@ css/style.css     Design-System und alle Komponenten
 js/db.js          Supabase-Verbindung und Datenzugriff
 js/app.js         Zustand, Hilfsfunktionen, Dialoge, Anmeldung, Navigation
 js/kasse.js       Kasse, Warenkorb, Zahlung, Bon
-js/orders.js      Bestellübersicht, Kennzahlen, Storno
-js/admin.js       Verwaltung mit fünf Reitern
+js/orders.js      Bestellübersicht, Kennzahlen je Mitarbeiter, Storno
+js/admin.js       Verwaltung mit acht Reitern
 favicon.svg       Logo als Symbol
+supabase/         SQL-Dateien für die Datenbank
 ```
+
+## Datenbank-Erweiterung einspielen
+
+Die Datei `supabase/v2-schichten-kooperationen-lager.sql` bringt Schichten, Kooperationen
+und das Lager in die Datenbank. Sie muss **einmal** ausgeführt werden:
+
+1. Supabase öffnen → Projekt `ldeuoyzuhgpvhznnfxyo` → **SQL Editor**
+2. Inhalt der Datei komplett einfügen und auf **Run** klicken
+3. Seite der Kasse neu laden
+
+Die Datei kann ohne Schaden mehrfach ausgeführt werden. Solange sie nicht eingespielt ist,
+läuft die Kasse im Notbetrieb weiter: Bestellungen werden gespeichert, aber ohne Lagerabzug,
+und die Stempeluhr meldet einen Fehler.
 
 ## Datenbank
 
