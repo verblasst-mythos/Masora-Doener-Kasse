@@ -279,6 +279,7 @@ const Admin = {
     let html = `
       <div class="toolbar">
         <button class="btn btn-primary" id="stock-add">+ Wareneingang</button>
+        <button class="btn btn-warn" id="stock-warn">⚠️ Warnung senden</button>
         <span class="spacer"></span>
         <span class="muted" style="font-size:var(--text-sm)">${this.products.length} Produkte</span>
       </div>
@@ -333,9 +334,13 @@ const Admin = {
     $("#admin-body").innerHTML = html;
 
     $("#stock-add")?.addEventListener("click", () => this.adjustStock());
+    $("#stock-warn")?.addEventListener("click", () => this.checkStockAndWarn());
     $$("#admin-body [data-adjust]").forEach((b) =>
       b.addEventListener("click", () => this.adjustStock(b.dataset.adjust)),
     );
+    
+    // Automatisch prüfen und warnen
+    this.checkStockAndWarn();
   },
 
   async adjustStock(productId = null) {
@@ -395,6 +400,48 @@ const Admin = {
         });
       },
     });
+  },
+
+  /* --------------------------------------------------------------------------
+     Lager-Warnung an Discord senden
+     -------------------------------------------------------------------------- */
+
+  async checkStockAndWarn() {
+    const products = await DB.listProducts(false);
+    const lowStock = products.filter(p => p.track_stock && p.stock <= p.min_stock);
+    
+    if (lowStock.length === 0) {
+      console.log("✅ Lager im grünen Bereich");
+      return;
+    }
+    
+    console.log(`⚠️ ${lowStock.length} Produkte mit niedrigem Bestand`);
+    
+    // Lager-Warnung an Discord senden
+    try {
+      const response = await fetch("https://masora-doener-kasse-worker.finnwoschech.workers.dev/stock-warning", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          products: lowStock.map(p => ({
+            name: p.name,
+            stock: p.stock,
+            min_stock: p.min_stock,
+          })),
+          staffName: State.user?.name || "System",
+        }),
+      });
+      
+      const result = await response.json();
+      
+      if (result.ok) {
+        toast(`⚠️ Lager-Warnung gesendet (${lowStock.length} Produkte)`);
+      } else {
+        console.error("❌ Fehler beim Senden:", result.error);
+      }
+    } catch (err) {
+      console.error("❌ Fehler beim Senden der Lager-Warnung:", err);
+    }
   },
 
   /* --------------------------------------------------------------------------
