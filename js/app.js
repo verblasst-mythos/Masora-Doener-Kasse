@@ -249,40 +249,27 @@ const Duty = {
   },
 
   /** Lädt eine eventuell noch offene Schicht nach dem Anmelden. */
-  async load() {
-    State.shift = null;
-    if (!State.user) return;
+async load() {
+  State.shift = null;
+  if (!State.user) return;
+  
+  try {
+    // Nur prüfen, ob es eine offene Schicht gibt
+    State.shift = await DB.openShift(State.user.id);
     
-    try {
-      // Offene Schicht laden
-      State.shift = await DB.openShift(State.user.id);
-      
-      // Falls keine offene Schicht, aber vor kurzem automatisch beendet
-      if (!State.shift) {
-        const resumed = await DB.resumeShift(State.user.id);
-        if (resumed) {
-          State.shift = resumed;
-          toast("Schicht fortgesetzt — du bist wieder im Dienst");
-        }
-      }
-      
-      // Falls immer noch keine Schicht, prüfe letzte 24h
-      if (!State.shift) {
-        const shifts = await DB.listShifts({ 
-          from: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-          staffId: State.user.id 
-        });
-        const openShift = shifts.find(s => !s.ended_at);
-        if (openShift) {
-          State.shift = openShift;
-        }
-      }
-    } catch (err) {
-      console.error("Fehler beim Laden der Schicht:", err);
+    // Falls es eine offene Schicht gibt, aber nicht automatisch fortsetzen
+    // Der User muss manuell einstempeln
+    if (State.shift && State.shift.ended_at === null) {
+      // Schicht existiert, aber wir setzen sie nicht automatisch
+      // User muss manuell auf "Einstempeln" klicken
+      State.shift = null;
     }
-    
-    this.paint();
-  },
+  } catch (err) {
+    console.error("Fehler beim Laden der Schicht:", err);
+  }
+  
+  this.paint();
+},
 
   async clockIn() {
     if (!State.user) return;
