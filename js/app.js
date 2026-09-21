@@ -1,5 +1,5 @@
 /* ==========================================================================
-   App-Kern: State, Hilfsfunktionen, Login, Navigation
+   App-Kern: State, Hilfsfunktionen, Login, Navigation, Branding
    ========================================================================== */
 "use strict";
 
@@ -22,7 +22,6 @@ const State = {
   userRole: null,
 };
 
-/* Nach dieser Zeit wird die Kasse automatisch abgemeldet. */
 const SESSION_MINUTES = 60;
 
 /* ==========================================================================
@@ -96,6 +95,14 @@ function $(selector, root = document) {
 
 function $$(selector, root = document) {
   return Array.from(root.querySelectorAll(selector));
+}
+
+function isValidColor(value) {
+  return /^#[0-9a-fA-F]{6}$/.test(String(value || ""));
+}
+
+function normalizeColor(value, fallback) {
+  return isValidColor(value) ? value : fallback;
 }
 
 function toast(message, kind = "") {
@@ -266,14 +273,18 @@ function confirmDialog(
         </button>
       `,
       onMount(root) {
-        $("[data-yes]", root)?.addEventListener("click", () => {
-          closeModal();
-          finish(true);
-        });
+        $("[data-yes]", root)?.addEventListener(
+          "click",
+          () => {
+            closeModal();
+            finish(true);
+          },
+        );
 
-        $("[data-close]", root)?.addEventListener("click", () => {
-          finish(false);
-        });
+        $("[data-close]", root)?.addEventListener(
+          "click",
+          () => finish(false),
+        );
       },
     });
   });
@@ -365,9 +376,7 @@ const Login = {
   },
 
   bind() {
-    const pad = $("#pin-pad");
-
-    pad?.addEventListener("click", (event) => {
+    $("#pin-pad")?.addEventListener("click", (event) => {
       const button = event.target.closest(
         "button[data-key]",
       );
@@ -422,8 +431,8 @@ const Duty = {
       );
 
       /*
-       * Offene alte Schichten werden bewusst nicht automatisch
-       * übernommen. Der Mitarbeiter muss erneut einstempeln.
+       * Eine alte offene Schicht wird nicht automatisch
+       * übernommen. Der Mitarbeiter stempelt manuell ein.
        */
       if (
         openShift &&
@@ -711,6 +720,9 @@ const App = {
       State.settings = settings;
 
       this.paintBrand();
+      this.paintTheme();
+      this.paintLogo();
+
       Login.show();
 
       const hint = $("#login-hint");
@@ -732,10 +744,11 @@ const App = {
   },
 
   paintBrand() {
+    const settings = State.settings || {};
+
     const name =
-      String(
-        State.settings?.business_name || "",
-      ).trim() || "Masora Döner";
+      String(settings.business_name || "").trim() ||
+      "Masora Döner";
 
     $$(".business-name-display").forEach(
       (element) => {
@@ -744,6 +757,93 @@ const App = {
     );
 
     document.title = `${name} — Kasse`;
+  },
+
+  paintTheme() {
+    const settings = State.settings || {};
+    const root = document.documentElement;
+
+    const primary = normalizeColor(
+      settings.primary_color,
+      "#e95420",
+    );
+
+    const accent = normalizeColor(
+      settings.accent_color,
+      "#e35d6a",
+    );
+
+    root.style.setProperty(
+      "--brand-primary",
+      primary,
+    );
+
+    root.style.setProperty(
+      "--brand-accent",
+      accent,
+    );
+
+    root.style.setProperty(
+      "--color-primary",
+      primary,
+    );
+
+    root.style.setProperty(
+      "--color-accent",
+      accent,
+    );
+
+    root.style.setProperty(
+      "--accent",
+      accent,
+    );
+
+    root.style.setProperty(
+      "--primary",
+      primary,
+    );
+
+    /*
+     * Falls dein bestehendes CSS diese Variablen benutzt,
+     * werden dadurch auch Buttons, aktive Tabs und Akzente geändert.
+     */
+  },
+
+  paintLogo() {
+    const settings = State.settings || {};
+    const name =
+      String(settings.business_name || "").trim() ||
+      "Masora Döner";
+
+    const logoUrl =
+      String(settings.logo_url || "").trim();
+
+    $$(".business-logo").forEach((container) => {
+      if (!logoUrl) {
+        container.innerHTML = `
+          <span
+            class="default-logo"
+            aria-hidden="true"
+          >
+            🍢
+          </span>
+        `;
+
+        container.classList.remove("has-image");
+        return;
+      }
+
+      container.innerHTML = `
+        <img
+          src="${esc(logoUrl)}"
+          alt="${esc(name)} Logo"
+          loading="eager"
+          onerror="this.parentElement.innerHTML='<span class=&quot;default-logo&quot; aria-hidden=&quot;true&quot;>🍢</span>';"
+        />
+      `;
+
+      container.classList.add("has-image");
+    });
   },
 
   async afterLogin() {
@@ -952,84 +1052,4 @@ const App = {
 };
 
 /* ==========================================================================
-   Discord-Quittung über Cloudflare Worker
-   ========================================================================== */
-
-const DISCORD_WORKER_URL =
-  "https://masora-doener-kasse-worker.finnwoschech.workers.dev/receipt";
-
-async function sendReceiptToDiscord(order) {
-  if (!order) {
-    throw new Error(
-      "Keine Bestellung zum Senden vorhanden.",
-    );
-  }
-
-  const items = Array.isArray(order.items)
-    ? order.items
-    : Array.isArray(order.products)
-      ? order.products
-      : State.cart;
-
-  const response = await fetch(
-    DISCORD_WORKER_URL,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        orderId:
-          order.id ||
-          order.order_id ||
-          order.number ||
-          "Unbekannt",
-
-        customerName:
-          order.customerName ||
-          order.customer_name ||
-          order.customer ||
-          "Gast",
-
-        total:
-          order.total ||
-          order.total_amount ||
-          order.amount ||
-          order.grand_total ||
-          0,
-
-        currency: order.currency || "EUR",
-
-        staffName:
-          State.user?.name || "Unbekannt",
-
-        items,
-      }),
-    },
-  );
-
-  const result = await response
-    .json()
-    .catch(() => null);
-
-  if (!response.ok) {
-    throw new Error(
-      result?.error ||
-        `Discord-Quittung konnte nicht gesendet werden (${response.status}).`,
-    );
-  }
-
-  return result;
-}
-
-/* ==========================================================================
-   Globale Exporte
-   ========================================================================== */
-
-window.sendReceiptToDiscord =
-  sendReceiptToDiscord;
-
-window.App = App;
-window.State = State;
-window.Duty = Duty;
-window.Login = Login;
+   Discord-Quittung über Cloudflare
