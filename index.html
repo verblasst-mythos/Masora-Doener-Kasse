@@ -14,19 +14,17 @@
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="css/style.css" />
   </head>
+
   <body>
-    <!-- ==================================================================
-         Anmeldung
-         ================================================================== -->
+    <!-- Anmeldung -->
     <div class="login hidden" id="login">
       <div class="login-card">
         <div class="brand">
-          <!-- Logo: Dönerspieß -->
           <svg
             width="44"
             height="44"
             viewBox="0 0 32 32"
-            aria-label="Masora Döner Logo"
+            aria-label="Geschäftslogo"
             role="img"
           >
             <path
@@ -49,31 +47,45 @@
               fill="currentColor"
             />
           </svg>
+
           <div class="brand-text">
-            <div class="brand-name">Masora Döner</div>
+            <div class="brand-name business-name-display">
+              Masora Döner
+            </div>
             <div class="brand-sub">Kassensystem</div>
           </div>
         </div>
+
         <p class="login-hint" id="login-hint">
           PIN eingeben, um die Kasse zu öffnen
         </p>
+
         <div class="pin-display" id="pin-display">
-          <span class="pin-dot"></span><span class="pin-dot"></span>
-          <span class="pin-dot"></span><span class="pin-dot"></span>
+          <span class="pin-dot"></span>
+          <span class="pin-dot"></span>
+          <span class="pin-dot"></span>
+          <span class="pin-dot"></span>
         </div>
+
         <div class="pin-pad" id="pin-pad">
-          <button data-key="1">1</button>
-          <button data-key="2">2</button>
-          <button data-key="3">3</button>
-          <button data-key="4">4</button>
-          <button data-key="5">5</button>
-          <button data-key="6">6</button>
-          <button data-key="7">7</button>
-          <button data-key="8">8</button>
-          <button data-key="9">9</button>
-          <button data-key="clear" aria-label="Eingabe löschen">C</button>
-          <button data-key="0">0</button>
-          <button data-key="del" aria-label="Eine Ziffer zurück">
+          <button type="button" data-key="1">1</button>
+          <button type="button" data-key="2">2</button>
+          <button type="button" data-key="3">3</button>
+          <button type="button" data-key="4">4</button>
+          <button type="button" data-key="5">5</button>
+          <button type="button" data-key="6">6</button>
+          <button type="button" data-key="7">7</button>
+          <button type="button" data-key="8">8</button>
+          <button type="button" data-key="9">9</button>
+          <button type="button" data-key="clear" aria-label="Eingabe löschen">
+            C
+          </button>
+          <button type="button" data-key="0">0</button>
+          <button
+            type="button"
+            data-key="del"
+            aria-label="Eine Ziffer zurück"
+          >
             <svg
               width="22"
               height="22"
@@ -87,18 +99,21 @@
             </svg>
           </button>
         </div>
+
         <p class="login-error" id="login-error" role="status"></p>
       </div>
     </div>
 
-    <!-- ==================================================================
-         Anwendung
-         ================================================================== -->
+    <!-- Anwendung -->
     <div class="app hidden" id="app">
       <header class="topbar">
         <div class="brand">
-          <!-- Logo: Dönerspieß -->
-          <svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true">
+          <svg
+            width="30"
+            height="30"
+            viewBox="0 0 32 32"
+            aria-hidden="true"
+          >
             <path
               d="M16 2.4v3.4M16 27.4v2.6"
               fill="none"
@@ -119,16 +134,28 @@
               fill="currentColor"
             />
           </svg>
+
           <div class="brand-text">
-            <div class="brand-name">Masora Döner</div>
+            <div class="brand-name business-name-display">
+              Masora Döner
+            </div>
             <div class="brand-sub">Kasse</div>
           </div>
         </div>
 
         <nav class="nav" id="nav" aria-label="Hauptbereiche">
-          <button data-view="kasse" aria-current="true">Kasse</button>
-          <button data-view="bestellungen">Bestellungen</button>
-          <button data-view="verwaltung" id="nav-admin" class="hidden">
+          <button type="button" data-view="kasse" aria-current="true">
+            Kasse
+          </button>
+          <button type="button" data-view="bestellungen">
+            Bestellungen
+          </button>
+          <button
+            type="button"
+            data-view="verwaltung"
+            id="nav-admin"
+            class="hidden"
+          >
             Verwaltung
           </button>
         </nav>
@@ -142,11 +169,16 @@
           >
             <span class="duty-dot"></span>
             <span class="duty-text">
-              <span class="duty-state" id="duty-state">Nicht im Dienst</span>
+              <span class="duty-state" id="duty-state">
+                Nicht im Dienst
+              </span>
               <span class="duty-since" id="duty-since"></span>
             </span>
           </button>
-          <button class="btn btn-sm" id="duty-toggle">Einstempeln</button>
+
+          <button class="btn btn-sm" id="duty-toggle" type="button">
+            Einstempeln
+          </button>
 
           <span class="user-chip">
             <span class="dot"></span>
@@ -154,12 +186,20 @@
             <span class="muted" id="user-role"></span>
             <span class="session-left" id="session-left"></span>
           </span>
+
           <button
             class="icon-btn"
             data-theme-toggle
+            type="button"
             aria-label="Design wechseln"
           ></button>
-          <button class="icon-btn" id="logout" aria-label="Abmelden">
+
+          <button
+            class="icon-btn"
+            id="logout"
+            type="button"
+            aria-label="Abmelden"
+          >
             <svg
               width="18"
               height="18"
@@ -179,7 +219,7 @@
       </header>
 
       <main class="main">
-        <!-- ---------------- Kasse ---------------- -->
+        <!-- Kasse -->
         <section class="view" data-view-panel="kasse">
           <div class="pos-left">
             <div
@@ -188,6 +228,7 @@
               role="group"
               aria-label="Kategorien"
             ></div>
+
             <div class="product-grid scroll" id="product-grid"></div>
           </div>
 
@@ -195,9 +236,11 @@
             <div class="cart-head">
               <span class="cart-title">Bestellung</span>
               <span class="badge" id="cart-count">0</span>
+
               <button
                 class="btn btn-sm btn-ghost"
                 id="cart-clear"
+                type="button"
                 style="margin-left: auto"
               >
                 Leeren
@@ -208,10 +251,15 @@
 
             <div class="cart-foot">
               <div id="duty-banner" class="duty-banner hidden">
-                <span
-                  >Du bist nicht im Dienst — Bestellungen sind gesperrt.</span
+                <span>
+                  Du bist nicht im Dienst — Bestellungen sind gesperrt.
+                </span>
+
+                <button
+                  class="btn btn-sm btn-primary"
+                  id="duty-banner-btn"
+                  type="button"
                 >
-                <button class="btn btn-sm btn-primary" id="duty-banner-btn">
                   Jetzt einstempeln
                 </button>
               </div>
@@ -226,24 +274,38 @@
               <div id="coop-box" class="coop-box"></div>
 
               <div class="sum-row">
-                <span>Zwischensumme</span><span id="sum-subtotal">0,00 €</span>
+                <span>Zwischensumme</span>
+                <span id="sum-subtotal">0,00 €</span>
               </div>
+
               <div class="sum-row discount hidden" id="row-discount">
-                <span id="label-discount">Rabatt</span
-                ><span id="sum-discount">0,00 €</span>
+                <span id="label-discount">Rabatt</span>
+                <span id="sum-discount">0,00 €</span>
               </div>
+
               <div class="sum-row">
-                <span>enthaltene MwSt.</span><span id="sum-vat">0,00 €</span>
+                <span>enthaltene MwSt.</span>
+                <span id="sum-vat">0,00 €</span>
               </div>
 
               <div class="sum-total">
                 <span class="sum-total-label">Summe</span>
-                <span class="sum-total-value" id="sum-total">0,00 €</span>
+                <span class="sum-total-value" id="sum-total">
+                  0,00 €
+                </span>
               </div>
 
               <div class="pay-split">
-                <button class="btn" id="pay-card" disabled>Karte</button>
-                <button class="btn btn-primary" id="pay-cash" disabled>
+                <button class="btn" id="pay-card" type="button" disabled>
+                  Karte
+                </button>
+
+                <button
+                  class="btn btn-primary"
+                  id="pay-cash"
+                  type="button"
+                  disabled
+                >
                   Bar kassieren
                 </button>
               </div>
@@ -251,16 +313,24 @@
           </aside>
         </section>
 
-        <!-- ---------------- Bestellungen ---------------- -->
+        <!-- Bestellungen -->
         <section class="view hidden" data-view-panel="bestellungen">
           <div class="page">
             <div class="page-head">
               <h1 class="page-title">Bestellungen</h1>
+
               <div class="subnav" id="o-range">
-                <button data-range="today" aria-current="true">Heute</button>
-                <button data-range="week">7 Tage</button>
-                <button data-range="all">Alle</button>
+                <button
+                  type="button"
+                  data-range="today"
+                  aria-current="true"
+                >
+                  Heute
+                </button>
+                <button type="button" data-range="week">7 Tage</button>
+                <button type="button" data-range="all">Alle</button>
               </div>
+
               <select
                 class="select select-sm"
                 id="o-staff"
@@ -268,13 +338,18 @@
               >
                 <option value="">Alle Mitarbeiter</option>
               </select>
+
               <span class="spacer"></span>
+
               <span
                 class="muted"
                 id="o-scope"
                 style="font-size: var(--text-sm)"
               ></span>
-              <button class="btn btn-sm" id="o-reload">Aktualisieren</button>
+
+              <button class="btn btn-sm" id="o-reload" type="button">
+                Aktualisieren
+              </button>
             </div>
 
             <div class="page-body scroll">
@@ -283,18 +358,22 @@
                   <div class="stat-label">Umsatz</div>
                   <div class="stat-value" id="o-revenue">0,00 €</div>
                 </div>
+
                 <div class="stat">
                   <div class="stat-label">Bestellungen</div>
                   <div class="stat-value" id="o-count">0</div>
                 </div>
+
                 <div class="stat">
                   <div class="stat-label">Ø pro Bon</div>
                   <div class="stat-value" id="o-avg">0,00 €</div>
                 </div>
+
                 <div class="stat">
                   <div class="stat-label">Bar</div>
                   <div class="stat-value" id="o-cash">0,00 €</div>
                 </div>
+
                 <div class="stat">
                   <div class="stat-label">Karte</div>
                   <div class="stat-value" id="o-card">0,00 €</div>
@@ -327,10 +406,11 @@
               >
                 <div class="card-head">
                   <span class="card-title">Umsatz je Mitarbeiter</span>
-                  <span class="muted" style="font-size: var(--text-sm)"
-                    >Nur für den Chef sichtbar</span
-                  >
+                  <span class="muted" style="font-size: var(--text-sm)">
+                    Nur für den Chef sichtbar
+                  </span>
                 </div>
+
                 <div class="table-wrap">
                   <table class="data">
                     <thead>
@@ -352,24 +432,68 @@
           </div>
         </section>
 
-        <!-- ---------------- Verwaltung ---------------- -->
+        <!-- Verwaltung -->
         <section class="view hidden" data-view-panel="verwaltung">
           <div class="page">
             <div class="page-head">
               <h1 class="page-title">Verwaltung</h1>
+
               <div class="subnav" id="admin-subnav">
-                <button data-tab="produkte" aria-current="true" id="tab-produkte">
+                <button
+                  type="button"
+                  data-tab="produkte"
+                  aria-current="true"
+                  id="tab-produkte"
+                >
                   Produkte
                 </button>
-                <button data-tab="lager" id="tab-lager">Lager</button>
-                <button data-tab="rabatte" id="tab-rabatte">Rabatte</button>
-                <button data-tab="kooperationen" id="tab-kooperationen">Kooperationen</button>
-                <button data-tab="personal" id="tab-personal">Personal</button>
-                <button data-tab="dienstzeiten" id="tab-dienstzeiten">Dienstzeiten</button>
-                <button data-tab="einstellungen" id="tab-einstellungen">Einstellungen</button>
-                <button data-tab="abschluss" id="tab-abschluss">Tagesabschluss</button>
+
+                <button type="button" data-tab="lager" id="tab-lager">
+                  Lager
+                </button>
+
+                <button type="button" data-tab="rabatte" id="tab-rabatte">
+                  Rabatte
+                </button>
+
+                <button
+                  type="button"
+                  data-tab="kooperationen"
+                  id="tab-kooperationen"
+                >
+                  Kooperationen
+                </button>
+
+                <button type="button" data-tab="personal" id="tab-personal">
+                  Personal
+                </button>
+
+                <button
+                  type="button"
+                  data-tab="dienstzeiten"
+                  id="tab-dienstzeiten"
+                >
+                  Dienstzeiten
+                </button>
+
+                <button
+                  type="button"
+                  data-tab="einstellungen"
+                  id="tab-einstellungen"
+                >
+                  Einstellungen
+                </button>
+
+                <button
+                  type="button"
+                  data-tab="abschluss"
+                  id="tab-abschluss"
+                >
+                  Tagesabschluss
+                </button>
               </div>
             </div>
+
             <div class="page-body scroll" id="admin-body"></div>
           </div>
         </section>
@@ -384,6 +508,7 @@
     <script src="js/kasse.js"></script>
     <script src="js/orders.js"></script>
     <script src="js/admin.js"></script>
+
     <script>
       Kasse.bind();
       Orders.bind();
