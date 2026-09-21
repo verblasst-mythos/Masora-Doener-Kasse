@@ -270,7 +270,7 @@ const DB = {
       await sb.from("settings").insert({ id: 1 }).select().single(),
     );
   },
-  async saveSettings(patch) {
+  async updateSettings(patch) {
     return unwrap(
       await sb
         .from("settings")
