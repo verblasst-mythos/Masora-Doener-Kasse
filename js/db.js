@@ -262,74 +262,85 @@ const DB = {
     return unwrap(await q);
   },
 
-/* ---------- Einstellungen ---------- */
+  /* ---------- Einstellungen ---------- */
 
-async getSettings() {
-  const rows = unwrap(
-    await sb
-      .from("settings")
-      .select(
-        "id, business_name, logo_url, primary_color, accent_color, updated_at",
-      )
-      .eq("id", 1),
-  );
+  async getSettings() {
+    const rows = unwrap(
+      await sb
+        .from("settings")
+        .select(
+          "id, business_name, logo_url, primary_color, accent_color, updated_at",
+        )
+        .eq("id", 1),
+    );
 
-  if (rows && rows.length) {
-    return rows[0];
-  }
+    if (rows && rows.length) {
+      return rows[0];
+    }
 
-  return unwrap(
-    await sb
-      .from("settings")
-      .insert({
-        id: 1,
-        business_name: "Masora Döner",
-        logo_url: null,
-        primary_color: "#e95420",
-        accent_color: "#e35d6a",
-      })
-      .select(
-        "id, business_name, logo_url, primary_color, accent_color, updated_at",
-      )
-      .single(),
-  );
-},
+    return unwrap(
+      await sb
+        .from("settings")
+        .insert({
+          id: 1,
+          business_name: "Masora Döner",
+          logo_url: null,
+          primary_color: "#e95420",
+          accent_color: "#e35d6a",
+        })
+        .select(
+          "id, business_name, logo_url, primary_color, accent_color, updated_at",
+        )
+        .single(),
+    );
+  },
 
-async updateSettings(patch) {
-  const business_name = String(
-    patch?.business_name || "Masora Döner",
-  ).trim();
+  async updateSettings(patch) {
+    const business_name = String(
+      patch?.business_name || "Masora Döner",
+    ).trim();
 
-  const logo_url =
-    String(patch?.logo_url || "").trim() || null;
+    const logo_url =
+      String(patch?.logo_url || "").trim() || null;
 
-  const primary_color =
-    /^#[0-9a-fA-F]{6}$/.test(patch?.primary_color)
+    const primary_color = /^#[0-9a-fA-F]{6}$/.test(
+      patch?.primary_color,
+    )
       ? patch.primary_color
       : "#e95420";
 
-  const accent_color =
-    /^#[0-9a-fA-F]{6}$/.test(patch?.accent_color)
+    const accent_color = /^#[0-9a-fA-F]{6}$/.test(
+      patch?.accent_color,
+    )
       ? patch.accent_color
       : "#e35d6a";
 
-  return unwrap(
-    await sb
-      .from("settings")
-      .upsert(
-        {
-          id: 1,
-          business_name,
-          logo_url,
-          primary_color,
-          accent_color,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "id" },
-      )
-      .select(
-        "id, business_name, logo_url, primary_color, accent_color, updated_at",
-      )
-      .single(),
-  );
-},
+    return unwrap(
+      await sb
+        .from("settings")
+        .upsert(
+          {
+            id: 1,
+            business_name,
+            logo_url,
+            primary_color,
+            accent_color,
+            updated_at: new Date().toISOString(),
+          },
+          {
+            onConflict: "id",
+          },
+        )
+        .select(
+          "id, business_name, logo_url, primary_color, accent_color, updated_at",
+        )
+        .single(),
+    );
+  },
+
+  async saveSettings(patch) {
+    return this.updateSettings(patch);
+  },
+};
+
+window.DB = DB;
