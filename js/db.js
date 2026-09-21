@@ -263,49 +263,58 @@ const DB = {
   },
 
   /* ---------- Einstellungen ---------- */
-async getSettings() {
-  const rows = unwrap(
-    await sb
-      .from("settings")
-      .select("id, business_name, updated_at")
-      .eq("id", 1)
-  );
 
-  if (rows && rows.length) return rows[0];
+  async getSettings() {
+    const rows = unwrap(
+      await sb
+        .from("settings")
+        .select("id, business_name, updated_at")
+        .eq("id", 1)
+    );
 
-  return unwrap(
-    await sb
-      .from("settings")
-      .insert({
-        id: 1,
-        business_name: "Masora Döner",
-      })
-      .select("id, business_name, updated_at")
-      .single()
-  );
-},
+    if (rows && rows.length) {
+      return rows[0];
+    }
 
-async updateSettings(patch) {
-  const businessName = String(
-    patch.business_name ?? patch.name ?? ""
-  ).trim();
-
-  return unwrap(
-    await sb
-      .from("settings")
-      .upsert(
-        {
+    return unwrap(
+      await sb
+        .from("settings")
+        .insert({
           id: 1,
-          business_name: businessName,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "id" }
-      )
-      .select("id, business_name, updated_at")
-      .single()
-  );
-},
+          business_name: "Masora Döner",
+        })
+        .select("id, business_name, updated_at")
+        .single()
+    );
+  },
 
-async saveSettings(patch) {
-  return this.updateSettings(patch);
-},
+  async updateSettings(patch) {
+    const business_name = String(
+      patch?.business_name || ""
+    ).trim();
+
+    if (!business_name) {
+      throw new Error("Geschäftsname darf nicht leer sein");
+    }
+
+    return unwrap(
+      await sb
+        .from("settings")
+        .upsert(
+          {
+            id: 1,
+            business_name,
+            updated_at: new Date().toISOString(),
+          },
+          {
+            onConflict: "id",
+          }
+        )
+        .select("id, business_name, updated_at")
+        .single()
+    );
+  },
+
+  async saveSettings(patch) {
+    return this.updateSettings(patch);
+  },
