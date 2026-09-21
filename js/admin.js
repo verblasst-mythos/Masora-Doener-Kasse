@@ -1018,9 +1018,11 @@ const Admin = {
      -------------------------------------------------------------------------- */
 
   renderSettings() {
-    const s = State.settings || {};
+    const settings = State.settings || {};
+
     const businessName =
-      s.business_name || s.shop_name || "Masora Döner";
+      String(settings.business_name || "").trim() ||
+      "Masora Döner";
 
     const html = `
       <div class="card">
@@ -1031,6 +1033,7 @@ const Admin = {
         <div class="card-body">
           <div class="field">
             <label for="set-name">Name des Geschäfts</label>
+
             <input
               id="set-name"
               type="text"
@@ -1055,34 +1058,42 @@ const Admin = {
 
     $("#admin-body").innerHTML = html;
 
-    $("#set-save")?.addEventListener("click", async () => {
-      const business_name = $("#set-name").value.trim();
+    $("#set-save")?.addEventListener(
+      "click",
+      async () => {
+        const input = $("#set-name");
+        const business_name =
+          input?.value.trim() || "";
 
-      if (!business_name) {
-        toast("Bitte einen Geschäftsnamen eingeben", "error");
-        return;
-      }
-
-      try {
-        const saved = await DB.updateSettings({
-          business_name,
-        });
-
-        State.settings = saved;
-
-        if (typeof App.paintBrand === "function") {
-          App.paintBrand();
+        if (!business_name) {
+          toast(
+            "Bitte einen Geschäftsnamen eingeben",
+            "error",
+          );
+          return;
         }
 
-        if (typeof updateBusinessName === "function") {
-          updateBusinessName(business_name);
-        }
+        try {
+          const saved =
+            await DB.updateSettings({
+              business_name,
+            });
 
-        toast("Einstellungen gespeichert");
-      } catch (err) {
-        fail(err);
-      }
-    });
+          State.settings = saved;
+
+          if (
+            window.App &&
+            typeof App.paintBrand === "function"
+          ) {
+            App.paintBrand();
+          }
+
+          toast("Einstellungen gespeichert");
+        } catch (error) {
+          fail(error);
+        }
+      },
+    );
   },
   /* --------------------------------------------------------------------------
      Tagesabschluss
