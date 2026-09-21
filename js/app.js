@@ -3,6 +3,10 @@
    ========================================================================== */
 "use strict";
 
+/* ==========================================================================
+   State
+   ========================================================================== */
+
 const State = {
   user: null,
   products: [],
@@ -11,24 +15,29 @@ const State = {
   settings: null,
   cart: [],
   discountId: "",
-  coop: null, // aktivierte Kooperation (Rabatt mit Codewort)
-  shift: null, // laufende Schicht, wenn eingestempelt
+  coop: null,
+  shift: null,
   category: null,
   view: "kasse",
-  userRole: null, // Wird beim Login gesetzt
+  userRole: null,
 };
 
-/** Nach dieser Zeit wird die Kasse automatisch abgemeldet. */
+/* Nach dieser Zeit wird die Kasse automatisch abgemeldet. */
 const SESSION_MINUTES = 60;
 
-/* ---------- Hilfsfunktionen ---------- */
+/* ==========================================================================
+   Hilfsfunktionen
+   ========================================================================== */
 
 const euro = new Intl.NumberFormat("de-DE", {
   style: "currency",
   currency: "EUR",
 });
-const money = (n) => euro.format(Number(n) || 0);
-const num = (n) => Math.round((Number(n) || 0) * 100) / 100;
+
+const money = (value) => euro.format(Number(value) || 0);
+
+const num = (value) =>
+  Math.round((Number(value) || 0) * 100) / 100;
 
 function fmtTime(iso) {
   return new Date(iso).toLocaleTimeString("de-DE", {
@@ -36,19 +45,25 @@ function fmtTime(iso) {
     minute: "2-digit",
   });
 }
-/** Sekunden als "1 Std 05 Min" bzw. "12 Min". */
+
 function fmtDuration(seconds) {
-  const s = Math.max(0, Math.round(Number(seconds) || 0));
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  if (h > 0) return `${h} Std ${String(m).padStart(2, "0")} Min`;
-  return `${m} Min`;
+  const value = Math.max(0, Math.round(Number(seconds) || 0));
+  const hours = Math.floor(value / 3600);
+  const minutes = Math.floor((value % 3600) / 60);
+
+  if (hours > 0) {
+    return `${hours} Std ${String(minutes).padStart(2, "0")} Min`;
+  }
+
+  return `${minutes} Min`;
 }
 
-/** Sekunden als "59:12" für den Countdown. */
 function fmtClock(seconds) {
-  const s = Math.max(0, Math.round(Number(seconds) || 0));
-  return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+  const value = Math.max(0, Math.round(Number(seconds) || 0));
+
+  return `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(
+    value % 60,
+  ).padStart(2, "0")}`;
 }
 
 function fmtDateTime(iso) {
@@ -60,40 +75,60 @@ function fmtDateTime(iso) {
     minute: "2-digit",
   });
 }
-function esc(s) {
-  return String(s ?? "").replace(
+
+function esc(value) {
+  return String(value ?? "").replace(
     /[&<>"']/g,
-    (c) =>
-      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
-        c
-      ],
+    (character) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      })[character],
   );
 }
-function $(sel, root = document) {
-  return root.querySelector(sel);
+
+function $(selector, root = document) {
+  return root.querySelector(selector);
 }
-function $$(sel, root = document) {
-  return Array.from(root.querySelectorAll(sel));
+
+function $$(selector, root = document) {
+  return Array.from(root.querySelectorAll(selector));
 }
 
 function toast(message, kind = "") {
-  const wrap = $("#toasts");
-  const el = document.createElement("div");
-  el.className = "toast" + (kind ? " " + kind : "");
-  el.textContent = message;
-  wrap.appendChild(el);
-  setTimeout(() => el.remove(), 3200);
+  const wrapper = $("#toasts");
+
+  if (!wrapper) {
+    console.log(message);
+    return;
+  }
+
+  const element = document.createElement("div");
+  element.className = "toast" + (kind ? ` ${kind}` : "");
+  element.textContent = message;
+
+  wrapper.appendChild(element);
+
+  setTimeout(() => {
+    element.remove();
+  }, 3200);
 }
 
-function fail(err) {
-  console.error(err);
+function fail(error) {
+  console.error(error);
+
   toast(
-    err && err.message ? err.message : "Ein Fehler ist aufgetreten",
+    error?.message || "Ein Fehler ist aufgetreten",
     "error",
   );
 }
 
-/* ---------- Modal ---------- */
+/* ==========================================================================
+   Modal
+   ========================================================================== */
 
 let modalKeyHandler = null;
 
@@ -105,63 +140,139 @@ function openModal({
   wide = false,
 }) {
   closeModal();
+
   const overlay = document.createElement("div");
   overlay.className = "overlay";
   overlay.id = "modal-overlay";
+
   overlay.innerHTML = `
-    <div class="modal" role="dialog" aria-modal="true" aria-label="${esc(title)}"
-         ${wide ? 'style="max-width:720px"' : ""}>
+    <div
+      class="modal"
+      role="dialog"
+      aria-modal="true"
+      aria-label="${esc(title)}"
+      ${wide ? 'style="max-width:720px"' : ""}
+    >
       <div class="modal-head">
         <h2 class="modal-title">${esc(title)}</h2>
-        <button class="icon-btn" data-close aria-label="Schließen">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-               stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+
+        <button
+          class="icon-btn"
+          type="button"
+          data-close
+          aria-label="Schließen"
+        >
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+          >
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
         </button>
       </div>
-      <div class="modal-body">${bodyHTML}</div>
-      ${footHTML ? `<div class="modal-foot">${footHTML}</div>` : ""}
-    </div>`;
+
+      <div class="modal-body">
+        ${bodyHTML}
+      </div>
+
+      ${
+        footHTML
+          ? `<div class="modal-foot">${footHTML}</div>`
+          : ""
+      }
+    </div>
+  `;
+
   document.body.appendChild(overlay);
 
-  overlay.addEventListener("click", (e) => {
-    if (e.target === overlay || e.target.closest("[data-close]")) closeModal();
+  overlay.addEventListener("click", (event) => {
+    if (
+      event.target === overlay ||
+      event.target.closest("[data-close]")
+    ) {
+      closeModal();
+    }
   });
-  modalKeyHandler = (e) => {
-    if (e.key === "Escape") closeModal();
+
+  modalKeyHandler = (event) => {
+    if (event.key === "Escape") {
+      closeModal();
+    }
   };
+
   document.addEventListener("keydown", modalKeyHandler);
 
-  if (onMount) onMount(overlay);
+  if (typeof onMount === "function") {
+    onMount(overlay);
+  }
+
   return overlay;
 }
 
 function closeModal() {
-  const el = $("#modal-overlay");
-  if (el) el.remove();
+  const modal = $("#modal-overlay");
+
+  if (modal) {
+    modal.remove();
+  }
+
   if (modalKeyHandler) {
     document.removeEventListener("keydown", modalKeyHandler);
     modalKeyHandler = null;
   }
 }
 
-/* ---------- Bestätigung ---------- */
+/* ==========================================================================
+   Bestätigung
+   ========================================================================== */
 
-function confirmDialog(title, text, confirmLabel = "Bestätigen") {
+function confirmDialog(
+  title,
+  text,
+  confirmLabel = "Bestätigen",
+) {
   return new Promise((resolve) => {
+    let answered = false;
+
+    const finish = (value) => {
+      if (answered) return;
+      answered = true;
+      resolve(value);
+    };
+
     openModal({
       title,
-      bodyHTML: `<p style="font-size:var(--text-sm)">${esc(text)}</p>`,
+      bodyHTML: `
+        <p style="font-size:var(--text-sm)">
+          ${esc(text)}
+        </p>
+      `,
       footHTML: `
-        <button class="btn" data-close>Abbrechen</button>
-        <button class="btn btn-primary" data-yes>${esc(confirmLabel)}</button>`,
+        <button class="btn" type="button" data-close>
+          Abbrechen
+        </button>
+
+        <button
+          class="btn btn-primary"
+          type="button"
+          data-yes
+        >
+          ${esc(confirmLabel)}
+        </button>
+      `,
       onMount(root) {
-        $("[data-yes]", root).addEventListener("click", () => {
+        $("[data-yes]", root)?.addEventListener("click", () => {
           closeModal();
-          resolve(true);
+          finish(true);
         });
-        root.addEventListener("click", (e) => {
-          if (e.target === root || e.target.closest("[data-close]"))
-            resolve(false);
+
+        $("[data-close]", root)?.addEventListener("click", () => {
+          finish(false);
         });
       },
     });
@@ -169,73 +280,121 @@ function confirmDialog(title, text, confirmLabel = "Bestätigen") {
 }
 
 /* ==========================================================================
-   Login (PIN)
+   Login
    ========================================================================== */
 
 const Login = {
   pin: "",
 
-  show() {
-    $("#login").classList.remove("hidden");
-    $("#app").classList.add("hidden");
+  show(message = "") {
+    $("#login")?.classList.remove("hidden");
+    $("#app")?.classList.add("hidden");
+
     this.pin = "";
     this.paint();
+
+    const errorElement = $("#login-error");
+
+    if (errorElement) {
+      errorElement.textContent = message;
+    }
   },
 
   hide() {
-    $("#login").classList.add("hidden");
-    $("#app").classList.remove("hidden");
+    $("#login")?.classList.add("hidden");
+    $("#app")?.classList.remove("hidden");
   },
 
   paint() {
-    $$("#pin-display .pin-dot").forEach((d, i) => {
-      d.classList.toggle("filled", i < this.pin.length);
+    $$("#pin-display .pin-dot").forEach((dot, index) => {
+      dot.classList.toggle(
+        "filled",
+        index < this.pin.length,
+      );
     });
   },
 
   press(key) {
-    const errEl = $("#login-error");
-    errEl.textContent = "";
+    const errorElement = $("#login-error");
+
+    if (errorElement) {
+      errorElement.textContent = "";
+    }
+
     if (key === "del") {
       this.pin = this.pin.slice(0, -1);
     } else if (key === "clear") {
       this.pin = "";
-    } else if (this.pin.length < 4) {
+    } else if (
+      /^[0-9]$/.test(String(key)) &&
+      this.pin.length < 4
+    ) {
       this.pin += key;
     }
+
     this.paint();
-    if (this.pin.length === 4) setTimeout(() => this.submit(), 120);
+
+    if (this.pin.length === 4) {
+      setTimeout(() => this.submit(), 120);
+    }
   },
 
   async submit() {
-    const errEl = $("#login-error");
-    const match = State.staff.find((s) => s.pin === this.pin && s.is_active);
+    const errorElement = $("#login-error");
+
+    const match = State.staff.find(
+      (staff) =>
+        String(staff.pin) === this.pin &&
+        staff.is_active,
+    );
+
     if (!match) {
-      errEl.textContent = "PIN nicht erkannt";
+      if (errorElement) {
+        errorElement.textContent = "PIN nicht erkannt";
+      }
+
       this.pin = "";
       this.paint();
       return;
     }
+
     State.user = match;
     this.hide();
+
     await App.afterLogin();
   },
 
   bind() {
-    $("#pin-pad").addEventListener("click", (e) => {
-      const b = e.target.closest("button[data-key]");
-      if (b) this.press(b.dataset.key);
+    const pad = $("#pin-pad");
+
+    pad?.addEventListener("click", (event) => {
+      const button = event.target.closest(
+        "button[data-key]",
+      );
+
+      if (button) {
+        this.press(button.dataset.key);
+      }
     });
-    document.addEventListener("keydown", (e) => {
-      if ($("#login").classList.contains("hidden")) return;
-      if (/^[0-9]$/.test(e.key)) this.press(e.key);
-      else if (e.key === "Backspace") this.press("del");
+
+    document.addEventListener("keydown", (event) => {
+      if ($("#login")?.classList.contains("hidden")) {
+        return;
+      }
+
+      if (/^[0-9]$/.test(event.key)) {
+        this.press(event.key);
+      } else if (event.key === "Backspace") {
+        this.press("del");
+      } else if (event.key === "Escape") {
+        this.press("clear");
+      }
     });
   },
 };
 
 /* ==========================================================================
-   Dienst: Ein- und Ausstempeln, Sitzungsdauer, Auto-Abmeldung
+   Dienst und Sitzung
    ========================================================================== */
 
 const Duty = {
@@ -243,181 +402,290 @@ const Duty = {
   ticker: null,
   warned: false,
 
-  /** Ist der angemeldete Mitarbeiter gerade im Dienst? */
   isOn() {
-    return !!(State.shift && !State.shift.ended_at);
+    return Boolean(
+      State.shift && !State.shift.ended_at,
+    );
   },
 
-  /** Lädt eine eventuell noch offene Schicht nach dem Anmelden. */
-async load() {
-  State.shift = null;
-  if (!State.user) return;
-  
-  try {
-    // Nur prüfen, ob es eine offene Schicht gibt
-    State.shift = await DB.openShift(State.user.id);
-    
-    // Falls es eine offene Schicht gibt, aber nicht automatisch fortsetzen
-    // Der User muss manuell einstempeln
-    if (State.shift && State.shift.ended_at === null) {
-      // Schicht existiert, aber wir setzen sie nicht automatisch
-      // User muss manuell auf "Einstempeln" klicken
-      State.shift = null;
+  async load() {
+    State.shift = null;
+
+    if (!State.user) {
+      this.paint();
+      return;
     }
-  } catch (err) {
-    console.error("Fehler beim Laden der Schicht:", err);
-  }
-  
-  this.paint();
-},
+
+    try {
+      const openShift = await DB.openShift(
+        State.user.id,
+      );
+
+      /*
+       * Offene alte Schichten werden bewusst nicht automatisch
+       * übernommen. Der Mitarbeiter muss erneut einstempeln.
+       */
+      if (
+        openShift &&
+        openShift.ended_at === null
+      ) {
+        State.shift = null;
+      }
+    } catch (error) {
+      console.error(
+        "Fehler beim Laden der Schicht:",
+        error,
+      );
+    }
+
+    this.paint();
+  },
 
   async clockIn() {
-    if (!State.user) return;
-    if (this.isOn()) return;
+    if (!State.user || this.isOn()) {
+      return;
+    }
+
     try {
-      State.shift = await DB.clockIn(State.user.id, State.user.name);
+      State.shift = await DB.clockIn(
+        State.user.id,
+        State.user.name,
+      );
+
       this.paint();
-      toast(`Eingestempelt um ${fmtTime(State.shift.started_at)}`);
-    } catch (err) {
-      fail(err);
+
+      toast(
+        `Eingestempelt um ${fmtTime(
+          State.shift.started_at,
+        )}`,
+      );
+    } catch (error) {
+      fail(error);
     }
   },
 
   async clockOut(auto = false) {
-    if (!this.isOn()) return null;
+    if (!this.isOn()) {
+      return null;
+    }
+
     const shiftId = State.shift.id;
     const startedAt = State.shift.started_at;
+
     try {
       await DB.clockOut(shiftId, auto);
-    } catch (err) {
-      console.error(err);
+    } catch (error) {
+      console.error(error);
+
       if (!auto) {
-        fail(err);
+        fail(error);
         return null;
       }
     }
+
     State.shift = null;
     this.paint();
+
     const worked = fmtDuration(
-      (Date.now() - new Date(startedAt).getTime()) / 1000,
+      (Date.now() - new Date(startedAt).getTime()) /
+        1000,
     );
-    if (!auto) toast(`Ausgestempelt — Dienstzeit ${worked}`);
+
+    if (!auto) {
+      toast(`Ausgestempelt — Dienstzeit ${worked}`);
+    }
+
     return worked;
   },
 
-  /* ---------- Anzeige ---------- */
-
   paint() {
     const chip = $("#duty-chip");
-    const btn = $("#duty-toggle");
-    if (!chip || !btn) return;
+    const button = $("#duty-toggle");
 
-    const on = this.isOn();
-    chip.classList.toggle("on", on);
-    chip.classList.toggle("off", !on);
-    $("#duty-banner")?.classList.toggle("hidden", on);
+    if (!chip || !button) {
+      return;
+    }
 
-    if (on) {
-      const secs =
-        (Date.now() - new Date(State.shift.started_at).getTime()) / 1000;
+    const onDuty = this.isOn();
+
+    chip.classList.toggle("on", onDuty);
+    chip.classList.toggle("off", !onDuty);
+
+    $("#duty-banner")?.classList.toggle(
+      "hidden",
+      onDuty,
+    );
+
+    if (onDuty) {
+      const seconds =
+        (Date.now() -
+          new Date(
+            State.shift.started_at,
+          ).getTime()) /
+        1000;
+
       $("#duty-state").textContent = "Im Dienst";
       $("#duty-since").textContent =
-        `seit ${fmtTime(State.shift.started_at)} · ${fmtDuration(secs)}`;
-      btn.textContent = "Ausstempeln";
-      btn.classList.remove("btn-primary");
+        `seit ${fmtTime(
+          State.shift.started_at,
+        )} · ${fmtDuration(seconds)}`;
+
+      button.textContent = "Ausstempeln";
+      button.classList.remove("btn-primary");
     } else {
-      $("#duty-state").textContent = "Nicht im Dienst";
-      $("#duty-since").textContent = "Zum Kassieren bitte einstempeln";
-      btn.textContent = "Einstempeln";
-      btn.classList.add("btn-primary");
+      $("#duty-state").textContent =
+        "Nicht im Dienst";
+
+      $("#duty-since").textContent =
+        "Zum Kassieren bitte einstempeln";
+
+      button.textContent = "Einstempeln";
+      button.classList.add("btn-primary");
     }
   },
 
-  /* ---------- Sitzung / Auto-Abmeldung ---------- */
-
   startSession() {
     this.stopSession();
+
     this.warned = false;
-    this.deadline = Date.now() + SESSION_MINUTES * 60 * 1000;
-    this.ticker = setInterval(() => this.tick(), 1000);
+    this.deadline =
+      Date.now() + SESSION_MINUTES * 60 * 1000;
+
+    this.ticker = setInterval(
+      () => this.tick(),
+      1000,
+    );
+
     this.tick();
   },
 
   stopSession() {
-    if (this.ticker) clearInterval(this.ticker);
+    if (this.ticker) {
+      clearInterval(this.ticker);
+    }
+
     this.ticker = null;
   },
 
   tick() {
-    const left = Math.max(0, (this.deadline - Date.now()) / 1000);
-    const el = $("#session-left");
-    if (el) {
-      el.textContent = fmtClock(left);
-      el.classList.toggle("warn", left <= 300);
-    }
-    if (this.isOn()) this.paint();
+    const remaining = Math.max(
+      0,
+      (this.deadline - Date.now()) / 1000,
+    );
 
-    if (left <= 300 && !this.warned) {
-      this.warned = true;
-      toast("Die Kasse meldet sich in 5 Minuten automatisch ab", "error");
+    const element = $("#session-left");
+
+    if (element) {
+      element.textContent = fmtClock(remaining);
+      element.classList.toggle(
+        "warn",
+        remaining <= 300,
+      );
     }
-    if (left <= 0) {
+
+    if (this.isOn()) {
+      this.paint();
+    }
+
+    if (
+      remaining <= 300 &&
+      !this.warned
+    ) {
+      this.warned = true;
+
+      toast(
+        "Die Kasse meldet sich in 5 Minuten automatisch ab",
+        "error",
+      );
+    }
+
+    if (remaining <= 0) {
       this.stopSession();
       this.autoLogout();
     }
   },
 
   async autoLogout() {
-    const name = State.user?.name || "";
+    const userName = State.user?.name || "";
     const worked = await this.clockOut(true);
-    await App.logout({ auto: true });
-    $("#login-error").textContent = worked
-      ? `${name} nach ${SESSION_MINUTES} Minuten automatisch abgemeldet · Dienstzeit ${worked}`
+
+    await App.logout({
+      auto: true,
+    });
+
+    const message = worked
+      ? `${userName} nach ${SESSION_MINUTES} Minuten automatisch abgemeldet · Dienstzeit ${worked}`
       : `Nach ${SESSION_MINUTES} Minuten automatisch abgemeldet`;
+
+    Login.show(message);
   },
 
-  /**
-   * Prüft vor dem Kassieren, ob der Mitarbeiter im Dienst ist.
-   * Ist er es nicht, kommt ein Hinweis mit direkter Einstempel-Taste.
-   */
   requireDuty() {
-    if (this.isOn()) return true;
+    if (this.isOn()) {
+      return true;
+    }
+
     openModal({
       title: "Du bist nicht im Dienst",
       bodyHTML: `
         <p style="font-size:var(--text-sm)">
-          Bevor du eine Bestellung kassieren kannst, musst du dich einstempeln.
-          So wird der Umsatz dir zugeordnet und deine Dienstzeit erfasst.
+          Bevor du eine Bestellung kassieren kannst,
+          musst du dich einstempeln.
         </p>
-        <p class="muted" style="font-size:var(--text-sm);margin-top:var(--space-3)">
+
+        <p
+          class="muted"
+          style="font-size:var(--text-sm);margin-top:var(--space-3)"
+        >
           Der Warenkorb bleibt erhalten.
-        </p>`,
+        </p>
+      `,
       footHTML: `
-        <button class="btn" data-close>Abbrechen</button>
-        <button class="btn btn-primary" id="duty-now">Jetzt einstempeln</button>`,
-      onMount: (root) => {
-        $("#duty-now", root).addEventListener("click", async () => {
-          closeModal();
-          await this.clockIn();
-        });
+        <button class="btn" type="button" data-close>
+          Abbrechen
+        </button>
+
+        <button
+          class="btn btn-primary"
+          type="button"
+          id="duty-now"
+        >
+          Jetzt einstempeln
+        </button>
+      `,
+      onMount(root) {
+        $("#duty-now", root)?.addEventListener(
+          "click",
+          async () => {
+            closeModal();
+            await Duty.clockIn();
+          },
+        );
       },
     });
+
     return false;
   },
 
   bind() {
-    $("#duty-toggle").addEventListener("click", async () => {
-      if (this.isOn()) {
-        const ok = await confirmDialog(
-          "Dienst beenden?",
-          "Du wirst ausgestempelt. Zum Kassieren musst du dich danach wieder einstempeln.",
-          "Ausstempeln",
-        );
-        if (ok) await this.clockOut(false);
-      } else {
-        await this.clockIn();
-      }
-    });
+    $("#duty-toggle")?.addEventListener(
+      "click",
+      async () => {
+        if (this.isOn()) {
+          const confirmed = await confirmDialog(
+            "Dienst beenden?",
+            "Du wirst ausgestempelt. Zum Kassieren musst du dich danach wieder einstempeln.",
+            "Ausstempeln",
+          );
+
+          if (confirmed) {
+            await this.clockOut(false);
+          }
+        } else {
+          await this.clockIn();
+        }
+      },
+    );
   },
 };
 
@@ -433,139 +701,252 @@ const App = {
     Duty.bind();
 
     try {
-      const [staff, settings] = await Promise.all([
-        DB.listStaff(true),
-        DB.getSettings(),
-      ]);
+      const [staff, settings] =
+        await Promise.all([
+          DB.listStaff(true),
+          DB.getSettings(),
+        ]);
+
       State.staff = staff;
       State.settings = settings;
+
       this.paintBrand();
       Login.show();
+
       const hint = $("#login-hint");
-      if (!staff.length) {
+
+      if (hint && !staff.length) {
         hint.textContent =
           "Kein Personal angelegt. Bitte in der Datenbank einen PIN hinterlegen.";
       }
-    } catch (err) {
-      fail(err);
-      $("#login-error").textContent = "Keine Verbindung zur Datenbank";
+    } catch (error) {
+      fail(error);
+
+      const loginError = $("#login-error");
+
+      if (loginError) {
+        loginError.textContent =
+          "Keine Verbindung zur Datenbank";
+      }
     }
   },
 
   paintBrand() {
-    const name = State.settings?.shop_name || "Masora Döner";
-    $$(".brand-name").forEach((el) => (el.textContent = name));
-    document.title = name + " — Kasse";
+    const name =
+      String(
+        State.settings?.business_name || "",
+      ).trim() || "Masora Döner";
+
+    $$(".business-name-display").forEach(
+      (element) => {
+        element.textContent = name;
+      },
+    );
+
+    document.title = `${name} — Kasse`;
   },
 
   async afterLogin() {
-    $("#user-name").textContent = State.user.name;
-    
-    // Rollen-Anzeige
+    $("#user-name").textContent =
+      State.user.name;
+
     const roleNames = {
       admin: "Admin",
       service: "Serviceleitung",
       lager: "Lager",
       kasse: "Kasse",
     };
-    $("#user-role").textContent = roleNames[State.user.role] || "Kasse";
-    
-    // Rolle speichern für Admin-Tabs
+
+    $("#user-role").textContent =
+      roleNames[State.user.role] || "Kasse";
+
     State.userRole = State.user.role;
-    
-    // Rolle merken
-    const role = State.user.role;
-    
-    // Verwaltung-Button: nur für admin, service, lager
-    const navAdmin = $("#nav-admin");
-    if (navAdmin) {
-      navAdmin.classList.toggle("hidden", !["admin", "service", "lager"].includes(role));
+
+    const adminNavigation = $("#nav-admin");
+
+    if (adminNavigation) {
+      adminNavigation.classList.toggle(
+        "hidden",
+        ![
+          "admin",
+          "service",
+          "lager",
+        ].includes(State.user.role),
+      );
     }
-    
+
     try {
-      const [products, discounts] = await Promise.all([
-        DB.listProducts(true),
-        DB.listDiscounts(true),
-      ]);
+      const [products, discounts] =
+        await Promise.all([
+          DB.listProducts(true),
+          DB.listDiscounts(true),
+        ]);
+
       State.products = products;
       State.discounts = discounts;
+
       await Duty.load();
       Duty.startSession();
+
       Kasse.render();
       this.go("kasse");
-    } catch (err) {
-      fail(err);
+    } catch (error) {
+      fail(error);
     }
   },
 
   async logout({ auto = false } = {}) {
-    // Beim manuellen Abmelden fragen, ob die Schicht beendet werden soll.
     if (!auto && Duty.isOn()) {
-      const ok = await confirmDialog(
+      const confirmed = await confirmDialog(
         "Abmelden und ausstempeln?",
-        `Du bist noch im Dienst. Beim Abmelden wirst du ausgestempelt.`,
+        "Du bist noch im Dienst. Beim Abmelden wirst du ausgestempelt.",
         "Abmelden",
       );
-      if (!ok) return;
+
+      if (!confirmed) {
+        return;
+      }
+
       await Duty.clockOut(false);
     }
+
     Duty.stopSession();
+
     State.user = null;
     State.shift = null;
     State.cart = [];
     State.discountId = "";
     State.coop = null;
+    State.userRole = null;
+
     closeModal();
     Login.show();
   },
 
   bindNav() {
-    $("#nav").addEventListener("click", (e) => {
-      const b = e.target.closest("button[data-view]");
-      if (b) this.go(b.dataset.view);
-    });
-    $("#logout").addEventListener("click", () => this.logout());
-    $("#duty-banner-btn").addEventListener("click", () => Duty.clockIn());
+    $("#nav")?.addEventListener(
+      "click",
+      (event) => {
+        const button = event.target.closest(
+          "button[data-view]",
+        );
+
+        if (button) {
+          this.go(button.dataset.view);
+        }
+      },
+    );
+
+    $("#logout")?.addEventListener(
+      "click",
+      () => this.logout(),
+    );
+
+    $("#duty-banner-btn")?.addEventListener(
+      "click",
+      () => Duty.clockIn(),
+    );
   },
 
   go(view) {
     State.view = view;
-    $$("#nav button[data-view]").forEach((b) => {
-      b.setAttribute("aria-current", String(b.dataset.view === view));
-    });
-    $$(".view").forEach((v) =>
-      v.classList.toggle("hidden", v.dataset.viewPanel !== view),
+
+    $$("#nav button[data-view]").forEach(
+      (button) => {
+        button.setAttribute(
+          "aria-current",
+          String(button.dataset.view === view),
+        );
+      },
     );
-    if (view === "bestellungen") Orders.load();
-    if (view === "verwaltung") Admin.open();
+
+    $$(".view").forEach((panel) => {
+      panel.classList.toggle(
+        "hidden",
+        panel.dataset.viewPanel !== view,
+      );
+    });
+
+    if (view === "bestellungen") {
+      Orders.load();
+    }
+
+    if (view === "verwaltung") {
+      Admin.open();
+    }
   },
 
   bindTheme() {
     const root = document.documentElement;
-    let mode = matchMedia("(prefers-color-scheme: light)").matches
+
+    let mode = matchMedia(
+      "(prefers-color-scheme: light)",
+    ).matches
       ? "light"
       : "dark";
+
     const paint = () => {
       root.setAttribute("data-theme", mode);
-      $$("[data-theme-toggle]").forEach((t) => {
-        t.setAttribute(
-          "aria-label",
-          mode === "dark"
-            ? "Zu hellem Design wechseln"
-            : "Zu dunklem Design wechseln",
-        );
-        t.innerHTML =
-          mode === "dark"
-            ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M2 12h2M20 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/></svg>'
-            : '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg>';
-      });
+
+      $$("[data-theme-toggle]").forEach(
+        (toggle) => {
+          toggle.setAttribute(
+            "aria-label",
+            mode === "dark"
+              ? "Zu hellem Design wechseln"
+              : "Zu dunklem Design wechseln",
+          );
+
+          toggle.innerHTML =
+            mode === "dark"
+              ? `
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                >
+                  <circle cx="12" cy="12" r="4.5" />
+                  <path
+                    d="M12 2v2M12 20v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M2 12h2M20 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"
+                  />
+                </svg>
+              `
+              : `
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                >
+                  <path
+                    d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"
+                  />
+                </svg>
+              `;
+        },
+      );
     };
+
     paint();
-    $$("[data-theme-toggle]").forEach((t) =>
-      t.addEventListener("click", () => {
-        mode = mode === "dark" ? "light" : "dark";
-        paint();
-      }),
+
+    $$("[data-theme-toggle]").forEach(
+      (toggle) => {
+        toggle.addEventListener("click", () => {
+          mode =
+            mode === "dark"
+              ? "light"
+              : "dark";
+
+          paint();
+        });
+      },
     );
   },
 };
@@ -579,7 +960,9 @@ const DISCORD_WORKER_URL =
 
 async function sendReceiptToDiscord(order) {
   if (!order) {
-    throw new Error("Keine Bestellung zum Senden vorhanden.");
+    throw new Error(
+      "Keine Bestellung zum Senden vorhanden.",
+    );
   }
 
   const items = Array.isArray(order.items)
@@ -588,36 +971,46 @@ async function sendReceiptToDiscord(order) {
       ? order.products
       : State.cart;
 
-  const response = await fetch(DISCORD_WORKER_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
+  const response = await fetch(
+    DISCORD_WORKER_URL,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        orderId:
+          order.id ||
+          order.order_id ||
+          order.number ||
+          "Unbekannt",
+
+        customerName:
+          order.customerName ||
+          order.customer_name ||
+          order.customer ||
+          "Gast",
+
+        total:
+          order.total ||
+          order.total_amount ||
+          order.amount ||
+          order.grand_total ||
+          0,
+
+        currency: order.currency || "EUR",
+
+        staffName:
+          State.user?.name || "Unbekannt",
+
+        items,
+      }),
     },
-    body: JSON.stringify({
-      orderId: order.id || order.order_id || order.number || "Unbekannt",
+  );
 
-      customerName:
-        order.customerName ||
-        order.customer_name ||
-        order.customer ||
-        "Gast",
-
-      total:
-        order.total ||
-        order.total_amount ||
-        order.amount ||
-        order.grand_total ||
-        0,
-
-      currency: order.currency || "EUR",
-
-      staffName: State.user?.name || "Unbekannt",
-
-      items: items,
-    }),
-  });
-
-  const result = await response.json().catch(() => null);
+  const result = await response
+    .json()
+    .catch(() => null);
 
   if (!response.ok) {
     throw new Error(
@@ -629,8 +1022,14 @@ async function sendReceiptToDiscord(order) {
   return result;
 }
 
-window.sendReceiptToDiscord = sendReceiptToDiscord;
+/* ==========================================================================
+   Globale Exporte
+   ========================================================================== */
+
+window.sendReceiptToDiscord =
+  sendReceiptToDiscord;
 
 window.App = App;
 window.State = State;
 window.Duty = Duty;
+window.Login = Login;
