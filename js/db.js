@@ -269,7 +269,7 @@ const DB = {
       await sb
         .from("settings")
         .select("id, business_name, updated_at")
-        .eq("id", 1)
+        .eq("id", 1),
     );
 
     if (rows && rows.length) {
@@ -284,13 +284,13 @@ const DB = {
           business_name: "Masora Döner",
         })
         .select("id, business_name, updated_at")
-        .single()
+        .single(),
     );
   },
 
   async updateSettings(patch) {
     const business_name = String(
-      patch?.business_name || ""
+      patch?.business_name || "",
     ).trim();
 
     if (!business_name) {
@@ -308,13 +308,16 @@ const DB = {
           },
           {
             onConflict: "id",
-          }
+          },
         )
         .select("id, business_name, updated_at")
-        .single()
+        .single(),
     );
   },
 
   async saveSettings(patch) {
     return this.updateSettings(patch);
   },
+};
+
+window.DB = DB;
