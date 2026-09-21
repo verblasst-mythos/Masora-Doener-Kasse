@@ -1,5 +1,6 @@
 /* ==========================================================================
-   Verwaltung: Produkte, Rabatte, Personal, Einstellungen, Tagesabschluss
+   Verwaltung: Produkte, Lager, Rabatte, Kooperationen, Personal,
+   Dienstzeiten, Einstellungen, Tagesabschluss
    ========================================================================== */
 "use strict";
 
@@ -11,113 +12,193 @@ const Admin = {
   staff: [],
   moves: [],
   shifts: [],
-  shiftRange: 7, // Tage für die Dienstzeiten-Übersicht
+  shiftRange: 7,
 
   open() {
-    // Tabs basierend auf Rolle ein-/ausblenden
-    const role = State.userRole || State.user?.role || 'kasse';
-    
-    // Welche Tabs darf welche Rolle sehen?
+    const role =
+      State.userRole ||
+      State.user?.role ||
+      "kasse";
+
     const allowedTabs = {
-      produkte: ['admin', 'service', 'lager'],
-      lager: ['admin', 'lager'],
-      rabatte: ['admin'],
-      kooperationen: ['admin'],
-      personal: ['admin'],
-      dienstzeiten: ['admin', 'service'],
-      einstellungen: ['admin'],
-      abschluss: ['admin'],
+      produkte: ["admin", "service", "lager"],
+      lager: ["admin", "lager"],
+      rabatte: ["admin"],
+      kooperationen: ["admin"],
+      personal: ["admin"],
+      dienstzeiten: ["admin", "service"],
+      einstellungen: ["admin"],
+      abschluss: ["admin"],
     };
-    
-    // Tabs ein-/ausblenden
-    $$('#admin-subnav button').forEach(btn => {
-      const tab = btn.dataset.tab;
-      const allowed = allowedTabs[tab] || ['admin'];
-      btn.classList.toggle('hidden', !allowed.includes(role));
+
+    $$("#admin-subnav button").forEach((button) => {
+      const tab = button.dataset.tab;
+      const allowed = allowedTabs[tab] || ["admin"];
+
+      button.classList.toggle(
+        "hidden",
+        !allowed.includes(role),
+      );
     });
-    
-    // Ersten sichtbaren Tab aktivieren
-    const firstVisible = $('#admin-subnav button:not(.hidden)');
-    if (firstVisible) {
+
+    const firstVisible = $(
+      "#admin-subnav button:not(.hidden)",
+    );
+
+    if (
+      !firstVisible ||
+      !allowedTabs[firstVisible.dataset.tab]?.includes(role)
+    ) {
+      this.tab = "produkte";
+    } else {
       this.tab = firstVisible.dataset.tab;
     }
-    
-    // Tabs malen und laden
+
     this.paintTabs();
     this.loadTab();
   },
 
   paintTabs() {
-    $$("#admin-subnav button").forEach((b) =>
-      b.setAttribute("aria-current", String(b.dataset.tab === this.tab)),
-    );
+    $$("#admin-subnav button").forEach((button) => {
+      button.setAttribute(
+        "aria-current",
+        String(button.dataset.tab === this.tab),
+      );
+    });
   },
 
   busy(text = "Lade …") {
-    $("#admin-body").innerHTML =
-      `<p class="muted" style="font-size:var(--text-sm)">${esc(text)}</p>`;
+    const body = $("#admin-body");
+
+    if (body) {
+      body.innerHTML = `
+        <p
+          class="muted"
+          style="font-size:var(--text-sm)"
+        >
+          ${esc(text)}
+        </p>
+      `;
+    }
   },
 
   async loadTab() {
     this.busy();
+
     try {
       if (this.tab === "produkte") {
         this.products = await DB.listProducts(false);
         this.renderProducts();
-      } else if (this.tab === "rabatte") {
-        this.discounts = await DB.listDiscounts(false);
-        this.renderDiscounts();
-      } else if (this.tab === "personal") {
-        this.staff = await DB.listStaff(false);
-        this.renderStaff();
-      } else if (this.tab === "kooperationen") {
-        this.coops = await DB.listCoops(false);
-        this.renderCoops();
       } else if (this.tab === "lager") {
-        const [products, moves] = await Promise.all([
+        const result = await Promise.all([
           DB.listProducts(false),
           DB.listStockMoves({ limit: 40 }),
         ]);
-        this.products = products;
-        this.moves = moves;
+
+        this.products = result[0];
+        this.moves = result[1];
         this.renderStock();
+      } else if (this.tab === "rabatte") {
+        this.discounts = await DB.listDiscounts(false);
+        this.renderDiscounts();
+      } else if (this.tab === "kooperationen") {
+        this.coops = await DB.listCoops(false);
+        this.renderCoops();
+      } else if (this.tab === "personal") {
+        this.staff = await DB.listStaff(false);
+        this.renderStaff();
       } else if (this.tab === "dienstzeiten") {
-        const from = startOfDay(-(this.shiftRange - 1)).toISOString();
-        const [shifts, staff] = await Promise.all([
+        const from = startOfDay(
+          -(this.shiftRange - 1),
+        ).toISOString();
+
+        const result = await Promise.all([
           DB.listShifts({ from }),
           DB.listStaff(false),
         ]);
-        this.shifts = shifts;
-        this.staff = staff;
+
+        this.shifts = result[0];
+        this.staff = result[1];
         this.renderShifts();
       } else if (this.tab === "einstellungen") {
         State.settings = await DB.getSettings();
+
+        if (
+          window.App &&
+          typeof App.paintBrand === "function"
+        ) {
+          App.paintBrand();
+        }
+
+        if (
+          window.App &&
+          typeof App.paintTheme === "function"
+        ) {
+          App.paintTheme();
+        }
+
+        if (
+          window.App &&
+          typeof App.paintLogo === "function"
+        ) {
+          App.paintLogo();
+        }
+
         this.renderSettings();
       } else if (this.tab === "abschluss") {
-        this.renderClosing(
-          await DB.listOrders({ from: startOfDay(0).toISOString() }),
-        );
+        const orders = await DB.listOrders({
+          from: startOfDay(0).toISOString(),
+        });
+
+        this.renderClosing(orders);
       }
-    } catch (err) {
-      fail(err);
-      $("#admin-body").innerHTML =
-        `<p class="muted" style="font-size:var(--text-sm)">Konnte nicht geladen werden.</p>`;
+    } catch (error) {
+      fail(error);
+
+      const body = $("#admin-body");
+
+      if (body) {
+        body.innerHTML = `
+          <p
+            class="muted"
+            style="font-size:var(--text-sm)"
+          >
+            Konnte nicht geladen werden.
+          </p>
+        `;
+      }
     }
   },
 
-  /* --------------------------------------------------------------------------
+  /* ------------------------------------------------------------------------
      Produkte
-     -------------------------------------------------------------------------- */
+     ------------------------------------------------------------------------ */
 
   renderProducts() {
-    const cats = [...new Set(this.products.map((p) => p.category || "Sonstiges"))];
     let html = `
       <div class="toolbar">
-        <button class="btn btn-primary" id="prod-add">+ Produkt</button>
+        <button
+          class="btn btn-primary"
+          id="prod-add"
+          type="button"
+        >
+          + Produkt
+        </button>
+
         <span class="spacer"></span>
-        <span class="muted" style="font-size:var(--text-sm)">${this.products.length} Produkte</span>
+
+        <span
+          class="muted"
+          style="font-size:var(--text-sm)"
+        >
+          ${this.products.length} Produkte
+        </span>
       </div>
-      <div class="card" style="margin-top:var(--space-4)">
+
+      <div
+        class="card"
+        style="margin-top:var(--space-4)"
+      >
         <div class="table-wrap">
           <table class="data">
             <thead>
@@ -130,28 +211,51 @@ const Admin = {
                 <th></th>
               </tr>
             </thead>
+
             <tbody>
     `;
 
-    for (const p of this.products) {
-      const vatRate = Number(p.vat_rate || 0) * 100;
-      const stockInfo = p.track_stock
-        ? `<span class="${p.stock <= p.min_stock ? 'text-error' : 'muted'}">${p.stock} / ${p.min_stock}</span>`
-        : '<span class="muted">—</span>';
+    for (const product of this.products) {
+      const vatRate =
+        Number(product.vat_rate || 0) * 100;
+
+      const stockInfo = product.track_stock
+        ? `
+          <span class="${
+            product.stock <= product.min_stock
+              ? "text-error"
+              : "muted"
+          }">
+            ${product.stock} / ${product.min_stock}
+          </span>
+        `
+        : `<span class="muted">—</span>`;
 
       html += `
         <tr>
-          <td>${esc(p.name)}</td>
-          <td>${esc(p.category || "Sonstiges")}</td>
-          <td class="num">${money(p.price)}</td>
+          <td>${esc(product.name)}</td>
+          <td>${esc(product.category || "Sonstiges")}</td>
+          <td class="num">${money(product.price)}</td>
           <td class="num">${vatRate.toFixed(0)} %</td>
           <td>${stockInfo}</td>
+
           <td class="actions">
-            <button class="icon-btn" data-edit="${p.id}" aria-label="Bearbeiten">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            <button
+              class="icon-btn"
+              type="button"
+              data-product-edit="${esc(product.id)}"
+              aria-label="Bearbeiten"
+            >
+              ✎
             </button>
-            <button class="icon-btn" data-delete="${p.id}" aria-label="Löschen">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+
+            <button
+              class="icon-btn"
+              type="button"
+              data-product-delete="${esc(product.id)}"
+              aria-label="Löschen"
+            >
+              ×
             </button>
           </td>
         </tr>
@@ -167,123 +271,288 @@ const Admin = {
 
     $("#admin-body").innerHTML = html;
 
-    // Bindings
-    $("#prod-add")?.addEventListener("click", () => this.editProduct());
-    $$("#admin-body [data-edit]").forEach((b) =>
-      b.addEventListener("click", () => this.editProduct(b.dataset.edit)),
+    $("#prod-add")?.addEventListener(
+      "click",
+      () => this.editProduct(),
     );
-    $$("#admin-body [data-delete]").forEach((b) =>
-      b.addEventListener("click", () => this.deleteProduct(b.dataset.delete)),
+
+    $$("#admin-body [data-product-edit]").forEach(
+      (button) => {
+        button.addEventListener("click", () => {
+          this.editProduct(
+            button.dataset.productEdit,
+          );
+        });
+      },
+    );
+
+    $$("#admin-body [data-product-delete]").forEach(
+      (button) => {
+        button.addEventListener("click", () => {
+          this.deleteProduct(
+            button.dataset.productDelete,
+          );
+        });
+      },
     );
   },
 
   async editProduct(id = null) {
-    const p = id ? this.products.find((x) => x.id === id) : null;
-    const isNew = !p;
+    const product = id
+      ? this.products.find(
+          (item) => String(item.id) === String(id),
+        )
+      : null;
+
+    const isNew = !product;
 
     openModal({
-      title: isNew ? "Produkt hinzufügen" : "Produkt bearbeiten",
+      title: isNew
+        ? "Produkt hinzufügen"
+        : "Produkt bearbeiten",
+
       bodyHTML: `
         <div class="field">
           <label for="prod-name">Name</label>
-          <input id="prod-name" type="text" value="${esc(p?.name || "")}" />
+          <input
+            id="prod-name"
+            type="text"
+            value="${esc(product?.name || "")}"
+          />
         </div>
+
         <div class="field">
           <label for="prod-cat">Kategorie</label>
-          <input id="prod-cat" type="text" value="${esc(p?.category || "")}" />
+          <input
+            id="prod-cat"
+            type="text"
+            value="${esc(product?.category || "")}"
+          />
         </div>
+
         <div class="field">
           <label for="prod-price">Preis (€)</label>
-          <input id="prod-price" type="number" step="0.01" value="${p?.price || ""}" />
+          <input
+            id="prod-price"
+            type="number"
+            step="0.01"
+            value="${product?.price ?? ""}"
+          />
         </div>
+
         <div class="field">
           <label for="prod-vat">MwSt. (%)</label>
-          <input id="prod-vat" type="number" step="0.1" value="${Number(p?.vat_rate || 0) * 100}" />
+          <input
+            id="prod-vat"
+            type="number"
+            step="0.1"
+            value="${
+              Number(product?.vat_rate || 0) * 100
+            }"
+          />
         </div>
+
         <div class="field">
           <label for="prod-stock">Lagerbestand</label>
-          <input id="prod-stock" type="number" step="0.01" value="${p?.stock ?? 0}" />
+          <input
+            id="prod-stock"
+            type="number"
+            step="0.01"
+            value="${product?.stock ?? 0}"
+          />
         </div>
+
         <div class="field">
-          <label for="prod-minstock">Mindestbestand</label>
-          <input id="prod-minstock" type="number" step="0.01" value="${p?.min_stock ?? 0}" />
+          <label for="prod-minstock">
+            Mindestbestand
+          </label>
+          <input
+            id="prod-minstock"
+            type="number"
+            step="0.01"
+            value="${product?.min_stock ?? 0}"
+          />
         </div>
+
         <div class="field">
           <label>
-            <input type="checkbox" id="prod-track" ${p?.track_stock ? "checked" : ""} />
+            <input
+              type="checkbox"
+              id="prod-track"
+              ${product?.track_stock ? "checked" : ""}
+            />
             Lagerverwaltung aktivieren
           </label>
         </div>
       `,
+
       footHTML: `
-        <button class="btn" data-close>Abbrechen</button>
-        <button class="btn btn-primary" data-save>${isNew ? "Hinzufügen" : "Speichern"}</button>
+        <button
+          class="btn"
+          type="button"
+          data-close
+        >
+          Abbrechen
+        </button>
+
+        <button
+          class="btn btn-primary"
+          type="button"
+          data-save
+        >
+          ${isNew ? "Hinzufügen" : "Speichern"}
+        </button>
       `,
+
       onMount(root) {
-        $("[data-save]", root).addEventListener("click", async () => {
-          const name = $("#prod-name", root).value.trim();
-          const category = $("#prod-cat", root).value.trim() || "Sonstiges";
-          const price = parseFloat($("#prod-price", root).value) || 0;
-          const vat_rate = (parseFloat($("#prod-vat", root).value) || 0) / 100;
-          const stock = parseFloat($("#prod-stock", root).value) || 0;
-          const min_stock = parseFloat($("#prod-minstock", root).value) || 0;
-          const track_stock = $("#prod-track", root).checked;
+        $("[data-save]", root)?.addEventListener(
+          "click",
+          async () => {
+            const name =
+              $("#prod-name", root).value.trim();
 
-          if (!name) {
-            toast("Name darf nicht leer sein", "error");
-            return;
-          }
+            const category =
+              $("#prod-cat", root).value.trim() ||
+              "Sonstiges";
 
-          try {
-            if (isNew) {
-              await DB.createProduct({ name, category, price, vat_rate, stock, min_stock, track_stock });
-            } else {
-              await DB.updateProduct(p.id, { name, category, price, vat_rate, stock, min_stock, track_stock });
+            const price =
+              parseFloat(
+                $("#prod-price", root).value,
+              ) || 0;
+
+            const vat_rate =
+              (parseFloat(
+                $("#prod-vat", root).value,
+              ) || 0) / 100;
+
+            const stock =
+              parseFloat(
+                $("#prod-stock", root).value,
+              ) || 0;
+
+            const min_stock =
+              parseFloat(
+                $("#prod-minstock", root).value,
+              ) || 0;
+
+            const track_stock =
+              $("#prod-track", root).checked;
+
+            if (!name) {
+              toast(
+                "Name darf nicht leer sein",
+                "error",
+              );
+              return;
             }
-            closeModal();
-            await Admin.loadTab();
-            toast(isNew ? "Produkt hinzugefügt" : "Produkt gespeichert");
-          } catch (err) {
-            fail(err);
-          }
-        });
+
+            try {
+              const data = {
+                name,
+                category,
+                price,
+                vat_rate,
+                stock,
+                min_stock,
+                track_stock,
+              };
+
+              if (isNew) {
+                await DB.createProduct(data);
+              } else {
+                await DB.updateProduct(
+                  product.id,
+                  data,
+                );
+              }
+
+              closeModal();
+              await Admin.loadTab();
+
+              toast(
+                isNew
+                  ? "Produkt hinzugefügt"
+                  : "Produkt gespeichert",
+              );
+            } catch (error) {
+              fail(error);
+            }
+          },
+        );
       },
     });
   },
 
   async deleteProduct(id) {
-    const p = this.products.find((x) => x.id === id);
-    if (!p) return;
+    const product = this.products.find(
+      (item) => String(item.id) === String(id),
+    );
 
-    const ok = await confirmDialog(
+    if (!product) {
+      return;
+    }
+
+    const confirmed = await confirmDialog(
       "Produkt löschen?",
-      `"${p.name}" wird endgültig gelöscht.`,
+      `"${product.name}" wird endgültig gelöscht.`,
       "Löschen",
     );
-    if (!ok) return;
+
+    if (!confirmed) {
+      return;
+    }
 
     try {
       await DB.deleteProduct(id);
       await this.loadTab();
       toast("Produkt gelöscht");
-    } catch (err) {
-      fail(err);
+    } catch (error) {
+      fail(error);
     }
   },
 
-  /* --------------------------------------------------------------------------
+  /* ------------------------------------------------------------------------
      Lager
-     -------------------------------------------------------------------------- */
+     ------------------------------------------------------------------------ */
 
   renderStock() {
+    const trackedProducts =
+      this.products.filter(
+        (product) => product.track_stock,
+      );
+
     let html = `
       <div class="toolbar">
-        <button class="btn btn-primary" id="stock-add">+ Wareneingang</button>
-        <button class="btn btn-warn" id="stock-warn">⚠️ Warnung senden</button>
+        <button
+          class="btn btn-primary"
+          id="stock-add"
+          type="button"
+        >
+          + Wareneingang
+        </button>
+
+        <button
+          class="btn btn-warn"
+          id="stock-warn"
+          type="button"
+        >
+          ⚠️ Warnung senden
+        </button>
+
         <span class="spacer"></span>
-        <span class="muted" style="font-size:var(--text-sm)">${this.products.length} Produkte</span>
+
+        <span
+          class="muted"
+          style="font-size:var(--text-sm)"
+        >
+          ${trackedProducts.length} Lagerprodukte
+        </span>
       </div>
-      <div class="card" style="margin-top:var(--space-4)">
+
+      <div
+        class="card"
+        style="margin-top:var(--space-4)"
+      >
         <div class="table-wrap">
           <table class="data">
             <thead>
@@ -296,28 +565,52 @@ const Admin = {
                 <th></th>
               </tr>
             </thead>
+
             <tbody>
     `;
 
-    for (const p of this.products.filter((x) => x.track_stock)) {
-      const lastMove = this.moves.find((m) => m.product_id === p.id);
-      const status =
-        p.stock <= 0
-          ? '<span class="text-error">Ausverkauft</span>'
-          : p.stock <= p.min_stock
-          ? '<span class="text-warn">Niedrig</span>'
-          : '<span class="text-success">OK</span>';
+    for (const product of trackedProducts) {
+      const lastMove = this.moves.find(
+        (move) =>
+          String(move.product_id) ===
+          String(product.id),
+      );
+
+      let status = "";
+
+      if (product.stock <= 0) {
+        status =
+          '<span class="text-error">Ausverkauft</span>';
+      } else if (product.stock <= product.min_stock) {
+        status =
+          '<span class="text-warn">Niedrig</span>';
+      } else {
+        status =
+          '<span class="text-success">OK</span>';
+      }
 
       html += `
         <tr>
-          <td>${esc(p.name)}</td>
-          <td class="num">${p.stock}</td>
-          <td class="num">${p.min_stock}</td>
+          <td>${esc(product.name)}</td>
+          <td class="num">${product.stock}</td>
+          <td class="num">${product.min_stock}</td>
           <td>${status}</td>
-          <td>${lastMove ? fmtDateTime(lastMove.created_at) : '—'}</td>
+          <td>
+            ${
+              lastMove
+                ? fmtDateTime(lastMove.created_at)
+                : "—"
+            }
+          </td>
+
           <td class="actions">
-            <button class="icon-btn" data-adjust="${p.id}" aria-label="Bestand anpassen">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            <button
+              class="icon-btn"
+              type="button"
+              data-stock-adjust="${esc(product.id)}"
+              aria-label="Bestand anpassen"
+            >
+              +
             </button>
           </td>
         </tr>
@@ -333,129 +626,260 @@ const Admin = {
 
     $("#admin-body").innerHTML = html;
 
-    $("#stock-add")?.addEventListener("click", () => this.adjustStock());
-    $("#stock-warn")?.addEventListener("click", () => this.checkStockAndWarn());
-    $$("#admin-body [data-adjust]").forEach((b) =>
-      b.addEventListener("click", () => this.adjustStock(b.dataset.adjust)),
+    $("#stock-add")?.addEventListener(
+      "click",
+      () => this.adjustStock(),
     );
-    
-    // Automatisch prüfen und warnen
-    this.checkStockAndWarn();
+
+    $("#stock-warn")?.addEventListener(
+      "click",
+      () => this.checkStockAndWarn(true),
+    );
+
+    $$("#admin-body [data-stock-adjust]").forEach(
+      (button) => {
+        button.addEventListener("click", () => {
+          this.adjustStock(
+            button.dataset.stockAdjust,
+          );
+        });
+      },
+    );
   },
 
   async adjustStock(productId = null) {
-    const products = this.products.filter((x) => x.track_stock);
-    const product = productId ? products.find((p) => p.id === productId) : products[0];
+    const products =
+      this.products.filter(
+        (product) => product.track_stock,
+      );
 
-    if (!product) {
-      toast("Keine Produkte mit Lagerverwaltung", "error");
+    const selected = productId
+      ? products.find(
+          (product) =>
+            String(product.id) ===
+            String(productId),
+        )
+      : products[0];
+
+    if (!selected) {
+      toast(
+        "Keine Produkte mit Lagerverwaltung",
+        "error",
+      );
       return;
     }
 
     openModal({
       title: "Lagerbestand anpassen",
+
       bodyHTML: `
         <div class="field">
           <label for="adj-product">Produkt</label>
           <select id="adj-product">
-            ${products.map((p) => `<option value="${p.id}" ${p.id === product.id ? 'selected' : ''}>${esc(p.name)} (${p.stock})</option>`).join('')}
+            ${products
+              .map(
+                (product) => `
+                  <option
+                    value="${esc(product.id)}"
+                    ${
+                      String(product.id) ===
+                      String(selected.id)
+                        ? "selected"
+                        : ""
+                    }
+                  >
+                    ${esc(product.name)}
+                    (${product.stock})
+                  </option>
+                `,
+              )
+              .join("")}
           </select>
         </div>
+
         <div class="field">
-          <label for="adj-delta">Änderung (+/-)</label>
-          <input id="adj-delta" type="number" step="0.01" value="0" />
+          <label for="adj-delta">
+            Änderung (+/-)
+          </label>
+          <input
+            id="adj-delta"
+            type="number"
+            step="0.01"
+            value="0"
+          />
         </div>
+
         <div class="field">
           <label for="adj-reason">Grund</label>
           <select id="adj-reason">
-            <option value="wareneingang">Wareneingang</option>
-            <option value="korrektur">Korrektur</option>
-            <option value="schwund">Schwund</option>
+            <option value="wareneingang">
+              Wareneingang
+            </option>
+            <option value="korrektur">
+              Korrektur
+            </option>
+            <option value="schwund">
+              Schwund
+            </option>
           </select>
         </div>
       `,
+
       footHTML: `
-        <button class="btn" data-close>Abbrechen</button>
-        <button class="btn btn-primary" data-save>Buchen</button>
+        <button
+          class="btn"
+          type="button"
+          data-close
+        >
+          Abbrechen
+        </button>
+
+        <button
+          class="btn btn-primary"
+          type="button"
+          data-save
+        >
+          Buchen
+        </button>
       `,
+
       onMount(root) {
-        $("[data-save]", root).addEventListener("click", async () => {
-          const pid = $("#adj-product", root).value;
-          const delta = parseFloat($("#adj-delta", root).value) || 0;
-          const reason = $("#adj-reason", root).value;
+        $("[data-save]", root)?.addEventListener(
+          "click",
+          async () => {
+            const productId =
+              $("#adj-product", root).value;
 
-          if (delta === 0) {
-            toast("Änderung darf nicht 0 sein", "error");
-            return;
-          }
+            const delta =
+              parseFloat(
+                $("#adj-delta", root).value,
+              ) || 0;
 
-          try {
-            await DB.adjustStock(pid, delta, reason, State.user?.name || "Unbekannt");
-            closeModal();
-            await Admin.loadTab();
-            toast("Lagerbestand aktualisiert");
-          } catch (err) {
-            fail(err);
-          }
-        });
+            const reason =
+              $("#adj-reason", root).value;
+
+            if (delta === 0) {
+              toast(
+                "Änderung darf nicht 0 sein",
+                "error",
+              );
+              return;
+            }
+
+            try {
+              await DB.adjustStock(
+                productId,
+                delta,
+                reason,
+                State.user?.name || "Unbekannt",
+              );
+
+              closeModal();
+              await Admin.loadTab();
+              toast("Lagerbestand aktualisiert");
+            } catch (error) {
+              fail(error);
+            }
+          },
+        );
       },
     });
   },
 
-  /* --------------------------------------------------------------------------
-     Lager-Warnung an Discord senden
-     -------------------------------------------------------------------------- */
-
-  async checkStockAndWarn() {
-    const products = await DB.listProducts(false);
-    const lowStock = products.filter(p => p.track_stock && p.stock <= p.min_stock);
-    
-    if (lowStock.length === 0) {
-      console.log("✅ Lager im grünen Bereich");
-      return;
-    }
-    
-    console.log(`⚠️ ${lowStock.length} Produkte mit niedrigem Bestand`);
-    
-    // Lager-Warnung an Discord senden
+  async checkStockAndWarn(showToast = false) {
     try {
-      const response = await fetch("https://masora-doener-kasse-worker.finnwoschech.workers.dev/stock-warning", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          products: lowStock.map(p => ({
-            name: p.name,
-            stock: p.stock,
-            min_stock: p.min_stock,
-          })),
-          staffName: State.user?.name || "System",
-        }),
-      });
-      
-      const result = await response.json();
-      
-      if (result.ok) {
-        toast(`⚠️ Lager-Warnung gesendet (${lowStock.length} Produkte)`);
-      } else {
-        console.error("❌ Fehler beim Senden:", result.error);
+      const products =
+        await DB.listProducts(false);
+
+      const lowStock = products.filter(
+        (product) =>
+          product.track_stock &&
+          product.stock <= product.min_stock,
+      );
+
+      if (!lowStock.length) {
+        if (showToast) {
+          toast("Lager ist im grünen Bereich");
+        }
+        return;
       }
-    } catch (err) {
-      console.error("❌ Fehler beim Senden der Lager-Warnung:", err);
+
+      const response = await fetch(
+        "https://masora-doener-kasse-worker.finnwoschech.workers.dev/stock-warning",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            products: lowStock.map((product) => ({
+              name: product.name,
+              stock: product.stock,
+              min_stock: product.min_stock,
+            })),
+            staffName:
+              State.user?.name || "System",
+          }),
+        },
+      );
+
+      const result = await response
+        .json()
+        .catch(() => null);
+
+      if (!response.ok || !result?.ok) {
+        throw new Error(
+          result?.error ||
+            "Lager-Warnung konnte nicht gesendet werden",
+        );
+      }
+
+      if (showToast) {
+        toast(
+          `Lager-Warnung gesendet (${lowStock.length} Produkte)`,
+        );
+      }
+    } catch (error) {
+      console.error(
+        "Lager-Warnung:",
+        error,
+      );
+
+      if (showToast) {
+        fail(error);
+      }
     }
   },
 
-  /* --------------------------------------------------------------------------
+  /* ------------------------------------------------------------------------
      Rabatte
-     -------------------------------------------------------------------------- */
+     ------------------------------------------------------------------------ */
 
   renderDiscounts() {
     let html = `
       <div class="toolbar">
-        <button class="btn btn-primary" id="disc-add">+ Rabatt</button>
+        <button
+          class="btn btn-primary"
+          id="disc-add"
+          type="button"
+        >
+          + Rabatt
+        </button>
+
         <span class="spacer"></span>
-        <span class="muted" style="font-size:var(--text-sm)">${this.discounts.length} Rabatte</span>
+
+        <span
+          class="muted"
+          style="font-size:var(--text-sm)"
+        >
+          ${this.discounts.length} Rabatte
+        </span>
       </div>
-      <div class="card" style="margin-top:var(--space-4)">
+
+      <div
+        class="card"
+        style="margin-top:var(--space-4)"
+      >
         <div class="table-wrap">
           <table class="data">
             <thead>
@@ -466,24 +890,44 @@ const Admin = {
                 <th></th>
               </tr>
             </thead>
+
             <tbody>
     `;
 
-    for (const d of this.discounts) {
-      const kind = d.kind === 'percent' ? 'Prozent' : 'Euro';
-      const value = d.kind === 'percent' ? `${d.value}%` : money(d.value);
+    for (const discount of this.discounts) {
+      const kind =
+        discount.kind === "percent"
+          ? "Prozent"
+          : "Euro";
+
+      const value =
+        discount.kind === "percent"
+          ? `${discount.value}%`
+          : money(discount.value);
 
       html += `
         <tr>
-          <td>${esc(d.name)}</td>
+          <td>${esc(discount.name)}</td>
           <td>${kind}</td>
           <td class="num">${value}</td>
+
           <td class="actions">
-            <button class="icon-btn" data-edit="${d.id}" aria-label="Bearbeiten">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            <button
+              class="icon-btn"
+              type="button"
+              data-discount-edit="${esc(discount.id)}"
+              aria-label="Bearbeiten"
+            >
+              ✎
             </button>
-            <button class="icon-btn" data-delete="${d.id}" aria-label="Löschen">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+
+            <button
+              class="icon-btn"
+              type="button"
+              data-discount-delete="${esc(discount.id)}"
+              aria-label="Löschen"
+            >
+              ×
             </button>
           </td>
         </tr>
@@ -499,102 +943,227 @@ const Admin = {
 
     $("#admin-body").innerHTML = html;
 
-    $("#disc-add")?.addEventListener("click", () => this.editDiscount());
-    $$("#admin-body [data-edit]").forEach((b) =>
-      b.addEventListener("click", () => this.editDiscount(b.dataset.edit)),
+    $("#disc-add")?.addEventListener(
+      "click",
+      () => this.editDiscount(),
     );
-    $$("#admin-body [data-delete]").forEach((b) =>
-      b.addEventListener("click", () => this.deleteDiscount(b.dataset.delete)),
+
+    $$("#admin-body [data-discount-edit]").forEach(
+      (button) => {
+        button.addEventListener("click", () => {
+          this.editDiscount(
+            button.dataset.discountEdit,
+          );
+        });
+      },
+    );
+
+    $$("#admin-body [data-discount-delete]").forEach(
+      (button) => {
+        button.addEventListener("click", () => {
+          this.deleteDiscount(
+            button.dataset.discountDelete,
+          );
+        });
+      },
     );
   },
 
   async editDiscount(id = null) {
-    const d = id ? this.discounts.find((x) => x.id === id) : null;
-    const isNew = !d;
+    const discount = id
+      ? this.discounts.find(
+          (item) =>
+            String(item.id) === String(id),
+        )
+      : null;
+
+    const isNew = !discount;
 
     openModal({
-      title: isNew ? "Rabatt hinzufügen" : "Rabatt bearbeiten",
+      title: isNew
+        ? "Rabatt hinzufügen"
+        : "Rabatt bearbeiten",
+
       bodyHTML: `
         <div class="field">
           <label for="disc-name">Name</label>
-          <input id="disc-name" type="text" value="${esc(d?.name || "")}" />
+          <input
+            id="disc-name"
+            type="text"
+            value="${esc(discount?.name || "")}"
+          />
         </div>
+
         <div class="field">
           <label for="disc-kind">Art</label>
           <select id="disc-kind">
-            <option value="percent" ${d?.kind === 'percent' ? 'selected' : ''}>Prozent (%)</option>
-            <option value="fixed" ${d?.kind === 'fixed' ? 'selected' : ''}>Fester Betrag (€)</option>
+            <option
+              value="percent"
+              ${
+                discount?.kind === "percent"
+                  ? "selected"
+                  : ""
+              }
+            >
+              Prozent (%)
+            </option>
+
+            <option
+              value="fixed"
+              ${
+                discount?.kind === "fixed"
+                  ? "selected"
+                  : ""
+              }
+            >
+              Fester Betrag (€)
+            </option>
           </select>
         </div>
+
         <div class="field">
           <label for="disc-value">Wert</label>
-          <input id="disc-value" type="number" step="0.01" value="${d?.value ?? ''}" />
+          <input
+            id="disc-value"
+            type="number"
+            step="0.01"
+            value="${discount?.value ?? ""}"
+          />
         </div>
       `,
+
       footHTML: `
-        <button class="btn" data-close>Abbrechen</button>
-        <button class="btn btn-primary" data-save>${isNew ? "Hinzufügen" : "Speichern"}</button>
+        <button
+          class="btn"
+          type="button"
+          data-close
+        >
+          Abbrechen
+        </button>
+
+        <button
+          class="btn btn-primary"
+          type="button"
+          data-save
+        >
+          ${isNew ? "Hinzufügen" : "Speichern"}
+        </button>
       `,
+
       onMount(root) {
-        $("[data-save]", root).addEventListener("click", async () => {
-          const name = $("#disc-name", root).value.trim();
-          const kind = $("#disc-kind", root).value;
-          const value = parseFloat($("#disc-value", root).value) || 0;
+        $("[data-save]", root)?.addEventListener(
+          "click",
+          async () => {
+            const name =
+              $("#disc-name", root).value.trim();
 
-          if (!name) {
-            toast("Name darf nicht leer sein", "error");
-            return;
-          }
+            const kind =
+              $("#disc-kind", root).value;
 
-          try {
-            if (isNew) {
-              await DB.createDiscount({ name, kind, value });
-            } else {
-              await DB.updateDiscount(d.id, { name, kind, value });
+            const value =
+              parseFloat(
+                $("#disc-value", root).value,
+              ) || 0;
+
+            if (!name) {
+              toast(
+                "Name darf nicht leer sein",
+                "error",
+              );
+              return;
             }
-            closeModal();
-            await Admin.loadTab();
-            toast(isNew ? "Rabatt hinzugefügt" : "Rabatt gespeichert");
-          } catch (err) {
-            fail(err);
-          }
-        });
+
+            try {
+              const data = {
+                name,
+                kind,
+                value,
+              };
+
+              if (isNew) {
+                await DB.createDiscount(data);
+              } else {
+                await DB.updateDiscount(
+                  discount.id,
+                  data,
+                );
+              }
+
+              closeModal();
+              await Admin.loadTab();
+
+              toast(
+                isNew
+                  ? "Rabatt hinzugefügt"
+                  : "Rabatt gespeichert",
+              );
+            } catch (error) {
+              fail(error);
+            }
+          },
+        );
       },
     });
   },
 
   async deleteDiscount(id) {
-    const d = this.discounts.find((x) => x.id === id);
-    if (!d) return;
+    const discount = this.discounts.find(
+      (item) =>
+        String(item.id) === String(id),
+    );
 
-    const ok = await confirmDialog(
+    if (!discount) {
+      return;
+    }
+
+    const confirmed = await confirmDialog(
       "Rabatt löschen?",
-      `"${d.name}" wird endgültig gelöscht.`,
+      `"${discount.name}" wird endgültig gelöscht.`,
       "Löschen",
     );
-    if (!ok) return;
+
+    if (!confirmed) {
+      return;
+    }
 
     try {
       await DB.deleteDiscount(id);
       await this.loadTab();
       toast("Rabatt gelöscht");
-    } catch (err) {
-      fail(err);
+    } catch (error) {
+      fail(error);
     }
   },
 
-  /* --------------------------------------------------------------------------
+  /* ------------------------------------------------------------------------
      Kooperationen
-     -------------------------------------------------------------------------- */
+     ------------------------------------------------------------------------ */
 
   renderCoops() {
     let html = `
       <div class="toolbar">
-        <button class="btn btn-primary" id="coop-add">+ Kooperation</button>
+        <button
+          class="btn btn-primary"
+          id="coop-add"
+          type="button"
+        >
+          + Kooperation
+        </button>
+
         <span class="spacer"></span>
-        <span class="muted" style="font-size:var(--text-sm)">${this.coops.length} Kooperationen</span>
+
+        <span
+          class="muted"
+          style="font-size:var(--text-sm)"
+        >
+          ${this.coops.length} Kooperationen
+        </span>
       </div>
-      <div class="card" style="margin-top:var(--space-4)">
+
+      <div
+        class="card"
+        style="margin-top:var(--space-4)"
+      >
         <div class="table-wrap">
           <table class="data">
             <thead>
@@ -607,26 +1176,46 @@ const Admin = {
                 <th></th>
               </tr>
             </thead>
+
             <tbody>
     `;
 
-    for (const c of this.coops) {
-      const kind = c.kind === 'percent' ? 'Prozent' : 'Euro';
-      const value = c.kind === 'percent' ? `${c.value}%` : money(c.value);
+    for (const coop of this.coops) {
+      const kind =
+        coop.kind === "percent"
+          ? "Prozent"
+          : "Euro";
+
+      const value =
+        coop.kind === "percent"
+          ? `${coop.value}%`
+          : money(coop.value);
 
       html += `
         <tr>
-          <td>${esc(c.name)}</td>
+          <td>${esc(coop.name)}</td>
           <td>${kind}</td>
           <td class="num">${value}</td>
-          <td><code>${esc(c.code)}</code></td>
-          <td>${c.is_active ? '✅' : '❌'}</td>
+          <td><code>${esc(coop.code)}</code></td>
+          <td>${coop.is_active ? "✅" : "❌"}</td>
+
           <td class="actions">
-            <button class="icon-btn" data-edit="${c.id}" aria-label="Bearbeiten">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            <button
+              class="icon-btn"
+              type="button"
+              data-coop-edit="${esc(coop.id)}"
+              aria-label="Bearbeiten"
+            >
+              ✎
             </button>
-            <button class="icon-btn" data-delete="${c.id}" aria-label="Löschen">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+
+            <button
+              class="icon-btn"
+              type="button"
+              data-coop-delete="${esc(coop.id)}"
+              aria-label="Löschen"
+            >
+              ×
             </button>
           </td>
         </tr>
@@ -642,114 +1231,262 @@ const Admin = {
 
     $("#admin-body").innerHTML = html;
 
-    $("#coop-add")?.addEventListener("click", () => this.editCoop());
-    $$("#admin-body [data-edit]").forEach((b) =>
-      b.addEventListener("click", () => this.editCoop(b.dataset.edit)),
+    $("#coop-add")?.addEventListener(
+      "click",
+      () => this.editCoop(),
     );
-    $$("#admin-body [data-delete]").forEach((b) =>
-      b.addEventListener("click", () => this.deleteCoop(b.dataset.delete)),
+
+    $$("#admin-body [data-coop-edit]").forEach(
+      (button) => {
+        button.addEventListener("click", () => {
+          this.editCoop(
+            button.dataset.coopEdit,
+          );
+        });
+      },
+    );
+
+    $$("#admin-body [data-coop-delete]").forEach(
+      (button) => {
+        button.addEventListener("click", () => {
+          this.deleteCoop(
+            button.dataset.coopDelete,
+          );
+        });
+      },
     );
   },
 
   async editCoop(id = null) {
-    const c = id ? this.coops.find((x) => x.id === id) : null;
-    const isNew = !c;
+    const coop = id
+      ? this.coops.find(
+          (item) =>
+            String(item.id) === String(id),
+        )
+      : null;
+
+    const isNew = !coop;
 
     openModal({
-      title: isNew ? "Kooperation hinzufügen" : "Kooperation bearbeiten",
+      title: isNew
+        ? "Kooperation hinzufügen"
+        : "Kooperation bearbeiten",
+
       bodyHTML: `
         <div class="field">
           <label for="coop-name">Name</label>
-          <input id="coop-name" type="text" value="${esc(c?.name || "")}" />
+          <input
+            id="coop-name"
+            type="text"
+            value="${esc(coop?.name || "")}"
+          />
         </div>
+
         <div class="field">
           <label for="coop-kind">Art</label>
           <select id="coop-kind">
-            <option value="percent" ${c?.kind === 'percent' ? 'selected' : ''}>Prozent (%)</option>
-            <option value="fixed" ${c?.kind === 'fixed' ? 'selected' : ''}>Fester Betrag (€)</option>
+            <option
+              value="percent"
+              ${
+                coop?.kind === "percent"
+                  ? "selected"
+                  : ""
+              }
+            >
+              Prozent (%)
+            </option>
+
+            <option
+              value="fixed"
+              ${
+                coop?.kind === "fixed"
+                  ? "selected"
+                  : ""
+              }
+            >
+              Fester Betrag (€)
+            </option>
           </select>
         </div>
+
         <div class="field">
           <label for="coop-value">Wert</label>
-          <input id="coop-value" type="number" step="0.01" value="${c?.value ?? ''}" />
+          <input
+            id="coop-value"
+            type="number"
+            step="0.01"
+            value="${coop?.value ?? ""}"
+          />
         </div>
+
         <div class="field">
           <label for="coop-code">Code</label>
-          <input id="coop-code" type="text" value="${esc(c?.code || "")}" />
+          <input
+            id="coop-code"
+            type="text"
+            value="${esc(coop?.code || "")}"
+          />
         </div>
+
         <div class="field">
           <label>
-            <input type="checkbox" id="coop-active" ${c?.is_active ? 'checked' : ''} />
+            <input
+              type="checkbox"
+              id="coop-active"
+              ${coop?.is_active ? "checked" : ""}
+            />
             Aktiv
           </label>
         </div>
       `,
+
       footHTML: `
-        <button class="btn" data-close>Abbrechen</button>
-        <button class="btn btn-primary" data-save>${isNew ? "Hinzufügen" : "Speichern"}</button>
+        <button
+          class="btn"
+          type="button"
+          data-close
+        >
+          Abbrechen
+        </button>
+
+        <button
+          class="btn btn-primary"
+          type="button"
+          data-save
+        >
+          ${isNew ? "Hinzufügen" : "Speichern"}
+        </button>
       `,
+
       onMount(root) {
-        $("[data-save]", root).addEventListener("click", async () => {
-          const name = $("#coop-name", root).value.trim();
-          const kind = $("#coop-kind", root).value;
-          const value = parseFloat($("#coop-value", root).value) || 0;
-          const code = $("#coop-code", root).value.trim();
-          const is_active = $("#coop-active", root).checked;
+        $("[data-save]", root)?.addEventListener(
+          "click",
+          async () => {
+            const name =
+              $("#coop-name", root).value.trim();
 
-          if (!name || !code) {
-            toast("Name und Code dürfen nicht leer sein", "error");
-            return;
-          }
+            const kind =
+              $("#coop-kind", root).value;
 
-          try {
-            if (isNew) {
-              await DB.createCoop({ name, kind, value, code, is_active });
-            } else {
-              await DB.updateCoop(c.id, { name, kind, value, code, is_active });
+            const value =
+              parseFloat(
+                $("#coop-value", root).value,
+              ) || 0;
+
+            const code =
+              $("#coop-code", root).value.trim();
+
+            const is_active =
+              $("#coop-active", root).checked;
+
+            if (!name || !code) {
+              toast(
+                "Name und Code dürfen nicht leer sein",
+                "error",
+              );
+              return;
             }
-            closeModal();
-            await Admin.loadTab();
-            toast(isNew ? "Kooperation hinzugefügt" : "Kooperation gespeichert");
-          } catch (err) {
-            fail(err);
-          }
-        });
+
+            try {
+              const data = {
+                name,
+                kind,
+                value,
+                code,
+                is_active,
+              };
+
+              if (isNew) {
+                await DB.createCoop(data);
+              } else {
+                await DB.updateCoop(
+                  coop.id,
+                  data,
+                );
+              }
+
+              closeModal();
+              await Admin.loadTab();
+
+              toast(
+                isNew
+                  ? "Kooperation hinzugefügt"
+                  : "Kooperation gespeichert",
+              );
+            } catch (error) {
+              fail(error);
+            }
+          },
+        );
       },
     });
   },
 
   async deleteCoop(id) {
-    const c = this.coops.find((x) => x.id === id);
-    if (!c) return;
+    const coop = this.coops.find(
+      (item) =>
+        String(item.id) === String(id),
+    );
 
-    const ok = await confirmDialog(
+    if (!coop) {
+      return;
+    }
+
+    const confirmed = await confirmDialog(
       "Kooperation löschen?",
-      `"${c.name}" wird endgültig gelöscht.`,
+      `"${coop.name}" wird endgültig gelöscht.`,
       "Löschen",
     );
-    if (!ok) return;
+
+    if (!confirmed) {
+      return;
+    }
 
     try {
       await DB.deleteCoop(id);
       await this.loadTab();
       toast("Kooperation gelöscht");
-    } catch (err) {
-      fail(err);
+    } catch (error) {
+      fail(error);
     }
   },
 
-  /* --------------------------------------------------------------------------
+  /* ------------------------------------------------------------------------
      Personal
-     -------------------------------------------------------------------------- */
+     ------------------------------------------------------------------------ */
 
   renderStaff() {
+    const roleNames = {
+      admin: "Admin",
+      service: "Serviceleitung",
+      lager: "Lager",
+      kasse: "Kasse",
+    };
+
     let html = `
       <div class="toolbar">
-        <button class="btn btn-primary" id="staff-add">+ Mitarbeiter</button>
+        <button
+          class="btn btn-primary"
+          id="staff-add"
+          type="button"
+        >
+          + Mitarbeiter
+        </button>
+
         <span class="spacer"></span>
-        <span class="muted" style="font-size:var(--text-sm)">${this.staff.length} Mitarbeiter</span>
+
+        <span
+          class="muted"
+          style="font-size:var(--text-sm)"
+        >
+          ${this.staff.length} Mitarbeiter
+        </span>
       </div>
-      <div class="card" style="margin-top:var(--space-4)">
+
+      <div
+        class="card"
+        style="margin-top:var(--space-4)"
+      >
         <div class="table-wrap">
           <table class="data">
             <thead>
@@ -761,25 +1498,37 @@ const Admin = {
                 <th></th>
               </tr>
             </thead>
+
             <tbody>
     `;
 
-    for (const s of this.staff) {
-      const roleNames = { admin: 'Admin', service: 'Service', lager: 'Lager', kasse: 'Kasse' };
-      const role = roleNames[s.role] || s.role;
-
+    for (const staff of this.staff) {
       html += `
         <tr>
-          <td>${esc(s.name)}</td>
-          <td>${role}</td>
-          <td><code>${esc(s.pin || "—")}</code></td>
-          <td>${s.is_active ? '✅' : '❌'}</td>
+          <td>${esc(staff.name)}</td>
+          <td>${esc(roleNames[staff.role] || staff.role)}</td>
+          <td>
+            <code>${esc(staff.pin || "—")}</code>
+          </td>
+          <td>${staff.is_active ? "✅" : "❌"}</td>
+
           <td class="actions">
-            <button class="icon-btn" data-edit="${s.id}" aria-label="Bearbeiten">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            <button
+              class="icon-btn"
+              type="button"
+              data-staff-edit="${esc(staff.id)}"
+              aria-label="Bearbeiten"
+            >
+              ✎
             </button>
-            <button class="icon-btn" data-delete="${s.id}" aria-label="Löschen">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+
+            <button
+              class="icon-btn"
+              type="button"
+              data-staff-delete="${esc(staff.id)}"
+              aria-label="Löschen"
+            >
+              ×
             </button>
           </td>
         </tr>
@@ -795,122 +1544,260 @@ const Admin = {
 
     $("#admin-body").innerHTML = html;
 
-    $("#staff-add")?.addEventListener("click", () => this.editStaff());
-    $$("#admin-body [data-edit]").forEach((b) =>
-      b.addEventListener("click", () => this.editStaff(b.dataset.edit)),
+    $("#staff-add")?.addEventListener(
+      "click",
+      () => this.editStaff(),
     );
-    $$("#admin-body [data-delete]").forEach((b) =>
-      b.addEventListener("click", () => this.deleteStaff(b.dataset.delete)),
+
+    $$("#admin-body [data-staff-edit]").forEach(
+      (button) => {
+        button.addEventListener("click", () => {
+          this.editStaff(
+            button.dataset.staffEdit,
+          );
+        });
+      },
+    );
+
+    $$("#admin-body [data-staff-delete]").forEach(
+      (button) => {
+        button.addEventListener("click", () => {
+          this.deleteStaff(
+            button.dataset.staffDelete,
+          );
+        });
+      },
     );
   },
 
   async editStaff(id = null) {
-    const s = id ? this.staff.find((x) => x.id === id) : null;
-    const isNew = !s;
+    const staff = id
+      ? this.staff.find(
+          (item) =>
+            String(item.id) === String(id),
+        )
+      : null;
+
+    const isNew = !staff;
 
     openModal({
-      title: isNew ? "Mitarbeiter hinzufügen" : "Mitarbeiter bearbeiten",
+      title: isNew
+        ? "Mitarbeiter hinzufügen"
+        : "Mitarbeiter bearbeiten",
+
       bodyHTML: `
         <div class="field">
           <label for="staff-name">Name</label>
-          <input id="staff-name" type="text" value="${esc(s?.name || "")}" />
+          <input
+            id="staff-name"
+            type="text"
+            value="${esc(staff?.name || "")}"
+          />
         </div>
+
         <div class="field">
           <label for="staff-role">Rolle</label>
           <select id="staff-role">
-            <option value="admin" ${s?.role === 'admin' ? 'selected' : ''}>Admin</option>
-            <option value="service" ${s?.role === 'service' ? 'selected' : ''}>Serviceleitung</option>
-            <option value="lager" ${s?.role === 'lager' ? 'selected' : ''}>Lager</option>
-            <option value="kasse" ${s?.role === 'kasse' ? 'selected' : ''}>Kasse</option>
+            <option
+              value="admin"
+              ${staff?.role === "admin" ? "selected" : ""}
+            >
+              Admin
+            </option>
+
+            <option
+              value="service"
+              ${staff?.role === "service" ? "selected" : ""}
+            >
+              Serviceleitung
+            </option>
+
+            <option
+              value="lager"
+              ${staff?.role === "lager" ? "selected" : ""}
+            >
+              Lager
+            </option>
+
+            <option
+              value="kasse"
+              ${staff?.role === "kasse" ? "selected" : ""}
+            >
+              Kasse
+            </option>
           </select>
         </div>
+
         <div class="field">
-          <label for="staff-pin">PIN (4 Ziffern)</label>
-          <input id="staff-pin" type="text" maxlength="4" pattern="[0-9]{4}" value="${esc(s?.pin || "")}" />
+          <label for="staff-pin">
+            PIN (4 Ziffern)
+          </label>
+          <input
+            id="staff-pin"
+            type="text"
+            maxlength="4"
+            inputmode="numeric"
+            value="${esc(staff?.pin || "")}"
+          />
         </div>
+
         <div class="field">
           <label>
-            <input type="checkbox" id="staff-active" ${s?.is_active ? 'checked' : ''} />
+            <input
+              type="checkbox"
+              id="staff-active"
+              ${staff?.is_active ? "checked" : ""}
+            />
             Aktiv
           </label>
         </div>
       `,
+
       footHTML: `
-        <button class="btn" data-close>Abbrechen</button>
-        <button class="btn btn-primary" data-save>${isNew ? "Hinzufügen" : "Speichern"}</button>
+        <button
+          class="btn"
+          type="button"
+          data-close
+        >
+          Abbrechen
+        </button>
+
+        <button
+          class="btn btn-primary"
+          type="button"
+          data-save
+        >
+          ${isNew ? "Hinzufügen" : "Speichern"}
+        </button>
       `,
+
       onMount(root) {
-        $("[data-save]", root).addEventListener("click", async () => {
-          const name = $("#staff-name", root).value.trim();
-          const role = $("#staff-role", root).value;
-          const pin = $("#staff-pin", root).value.trim();
-          const is_active = $("#staff-active", root).checked;
+        $("[data-save]", root)?.addEventListener(
+          "click",
+          async () => {
+            const name =
+              $("#staff-name", root).value.trim();
 
-          if (!name) {
-            toast("Name darf nicht leer sein", "error");
-            return;
-          }
+            const role =
+              $("#staff-role", root).value;
 
-          if (!/^[0-9]{4}$/.test(pin)) {
-            toast("PIN muss 4 Ziffern sein", "error");
-            return;
-          }
+            const pin =
+              $("#staff-pin", root).value.trim();
 
-          try {
-            if (isNew) {
-              await DB.createStaff({ name, role, pin, is_active });
-            } else {
-              await DB.updateStaff(s.id, { name, role, pin, is_active });
+            const is_active =
+              $("#staff-active", root).checked;
+
+            if (!name) {
+              toast(
+                "Name darf nicht leer sein",
+                "error",
+              );
+              return;
             }
-            closeModal();
-            await Admin.loadTab();
-            toast(isNew ? "Mitarbeiter hinzugefügt" : "Mitarbeiter gespeichert");
-          } catch (err) {
-            fail(err);
-          }
-        });
+
+            if (!/^[0-9]{4}$/.test(pin)) {
+              toast(
+                "PIN muss genau 4 Ziffern enthalten",
+                "error",
+              );
+              return;
+            }
+
+            try {
+              const data = {
+                name,
+                role,
+                pin,
+                is_active,
+              };
+
+              if (isNew) {
+                await DB.createStaff(data);
+              } else {
+                await DB.updateStaff(
+                  staff.id,
+                  data,
+                );
+              }
+
+              closeModal();
+              await Admin.loadTab();
+
+              toast(
+                isNew
+                  ? "Mitarbeiter hinzugefügt"
+                  : "Mitarbeiter gespeichert",
+              );
+            } catch (error) {
+              fail(error);
+            }
+          },
+        );
       },
     });
   },
 
   async deleteStaff(id) {
-    const s = this.staff.find((x) => x.id === id);
-    if (!s) return;
+    const staff = this.staff.find(
+      (item) =>
+        String(item.id) === String(id),
+    );
 
-    const ok = await confirmDialog(
+    if (!staff) {
+      return;
+    }
+
+    const confirmed = await confirmDialog(
       "Mitarbeiter löschen?",
-      `"${s.name}" wird endgültig gelöscht.`,
+      `"${staff.name}" wird endgültig gelöscht.`,
       "Löschen",
     );
-    if (!ok) return;
+
+    if (!confirmed) {
+      return;
+    }
 
     try {
       await DB.deleteStaff(id);
       await this.loadTab();
       toast("Mitarbeiter gelöscht");
-    } catch (err) {
-      fail(err);
+    } catch (error) {
+      fail(error);
     }
   },
 
-  /* --------------------------------------------------------------------------
+  /* ------------------------------------------------------------------------
      Dienstzeiten
-     -------------------------------------------------------------------------- */
+     ------------------------------------------------------------------------ */
 
   renderShifts() {
     const byStaff = {};
+
     for (const shift of this.shifts) {
-      if (!byStaff[shift.staff_id]) byStaff[shift.staff_id] = [];
-      byStaff[shift.staff_id].push(shift);
+      const key = String(shift.staff_id);
+
+      if (!byStaff[key]) {
+        byStaff[key] = [];
+      }
+
+      byStaff[key].push(shift);
     }
 
     let html = `
       <div class="toolbar">
-        <span class="muted" style="font-size:var(--text-sm)">
-          ${this.shiftRange} Tage · ${this.shifts.length} Schichten
+        <span
+          class="muted"
+          style="font-size:var(--text-sm)"
+        >
+          ${this.shiftRange} Tage ·
+          ${this.shifts.length} Schichten
         </span>
       </div>
-      <div class="card" style="margin-top:var(--space-4)">
+
+      <div
+        class="card"
+        style="margin-top:var(--space-4)"
+      >
         <div class="table-wrap">
           <table class="data">
             <thead>
@@ -921,25 +1808,48 @@ const Admin = {
                 <th>Details</th>
               </tr>
             </thead>
+
             <tbody>
     `;
 
-    for (const [staffId, shifts] of Object.entries(byStaff)) {
-      const staff = this.staff.find((s) => s.id === staffId);
-      const name = staff?.name || 'Unbekannt';
-      const totalSeconds = shifts.reduce((acc, s) => {
-        const start = new Date(s.started_at).getTime();
-        const end = s.ended_at ? new Date(s.ended_at).getTime() : Date.now();
-        return acc + (end - start) / 1000;
-      }, 0);
+    for (const [staffId, shifts] of Object.entries(
+      byStaff,
+    )) {
+      const staff = this.staff.find(
+        (item) =>
+          String(item.id) === String(staffId),
+      );
+
+      const totalSeconds = shifts.reduce(
+        (total, shift) => {
+          const start = new Date(
+            shift.started_at,
+          ).getTime();
+
+          const end = shift.ended_at
+            ? new Date(shift.ended_at).getTime()
+            : Date.now();
+
+          return total + (end - start) / 1000;
+        },
+        0,
+      );
 
       html += `
         <tr>
-          <td>${esc(name)}</td>
+          <td>${esc(staff?.name || "Unbekannt")}</td>
           <td class="num">${shifts.length}</td>
-          <td class="num">${fmtDuration(totalSeconds)}</td>
+          <td class="num">
+            ${fmtDuration(totalSeconds)}
+          </td>
           <td>
-            <button class="btn btn-sm" data-show="${staffId}">Anzeigen</button>
+            <button
+              class="btn btn-sm"
+              type="button"
+              data-shifts-show="${esc(staffId)}"
+            >
+              Anzeigen
+            </button>
           </td>
         </tr>
       `;
@@ -954,22 +1864,59 @@ const Admin = {
 
     $("#admin-body").innerHTML = html;
 
-    $$("#admin-body [data-show]").forEach((b) =>
-      b.addEventListener("click", () => this.showShifts(b.dataset.show)),
+    $$("#admin-body [data-shifts-show]").forEach(
+      (button) => {
+        button.addEventListener("click", () => {
+          this.showShifts(
+            button.dataset.shiftsShow,
+          );
+        });
+      },
     );
   },
 
   showShifts(staffId) {
-    const staff = this.staff.find((s) => s.id === staffId);
-    const shifts = this.shifts.filter((s) => s.staff_id === staffId).sort((a, b) => new Date(b.started_at) - new Date(a.started_at));
+    const staff = this.staff.find(
+      (item) =>
+        String(item.id) === String(staffId),
+    );
+
+    const shifts = this.shifts
+      .filter(
+        (shift) =>
+          String(shift.staff_id) ===
+          String(staffId),
+      )
+      .sort(
+        (a, b) =>
+          new Date(b.started_at) -
+          new Date(a.started_at),
+      );
 
     let html = `
       <div class="toolbar">
-        <button class="btn" data-back>Zurück</button>
+        <button
+          class="btn"
+          type="button"
+          id="shifts-back"
+        >
+          Zurück
+        </button>
+
         <span class="spacer"></span>
-        <span class="muted" style="font-size:var(--text-sm)">${esc(staff?.name || '')}</span>
+
+        <span
+          class="muted"
+          style="font-size:var(--text-sm)"
+        >
+          ${esc(staff?.name || "")}
+        </span>
       </div>
-      <div class="card" style="margin-top:var(--space-4)">
+
+      <div
+        class="card"
+        style="margin-top:var(--space-4)"
+      >
         <div class="table-wrap">
           <table class="data">
             <thead>
@@ -980,20 +1927,36 @@ const Admin = {
                 <th>Auto</th>
               </tr>
             </thead>
+
             <tbody>
     `;
 
-    for (const s of shifts) {
-      const duration = s.ended_at
-        ? fmtDuration((new Date(s.ended_at).getTime() - new Date(s.started_at).getTime()) / 1000)
-        : '—';
+    for (const shift of shifts) {
+      const duration = shift.ended_at
+        ? fmtDuration(
+            (
+              new Date(
+                shift.ended_at,
+              ).getTime() -
+              new Date(
+                shift.started_at,
+              ).getTime()
+            ) / 1000,
+          )
+        : "—";
 
       html += `
         <tr>
-          <td>${fmtDateTime(s.started_at)}</td>
-          <td>${s.ended_at ? fmtDateTime(s.ended_at) : '—'}</td>
+          <td>${fmtDateTime(shift.started_at)}</td>
+          <td>
+            ${
+              shift.ended_at
+                ? fmtDateTime(shift.ended_at)
+                : "—"
+            }
+          </td>
           <td class="num">${duration}</td>
-          <td>${s.ended_auto ? '✅' : '❌'}</td>
+          <td>${shift.ended_auto ? "✅" : "❌"}</td>
         </tr>
       `;
     }
@@ -1007,15 +1970,19 @@ const Admin = {
 
     $("#admin-body").innerHTML = html;
 
-    $("[data-back]")?.addEventListener("click", () => {
-      this.tab = "dienstzeiten";
-      this.loadTab();
-    });
+    $("#shifts-back")?.addEventListener(
+      "click",
+      () => {
+        this.tab = "dienstzeiten";
+        this.paintTabs();
+        this.loadTab();
+      },
+    );
   },
 
-  /* --------------------------------------------------------------------------
+  /* ------------------------------------------------------------------------
      Einstellungen
-     -------------------------------------------------------------------------- */
+     ------------------------------------------------------------------------ */
 
   renderSettings() {
     const settings = State.settings || {};
@@ -1028,16 +1995,20 @@ const Admin = {
       String(settings.logo_url || "").trim();
 
     const primaryColor =
-      /^#[0-9a-fA-F]{6}$/.test(settings.primary_color)
+      /^#[0-9a-fA-F]{6}$/.test(
+        settings.primary_color,
+      )
         ? settings.primary_color
         : "#e95420";
 
     const accentColor =
-      /^#[0-9a-fA-F]{6}$/.test(settings.accent_color)
+      /^#[0-9a-fA-F]{6}$/.test(
+        settings.accent_color,
+      )
         ? settings.accent_color
         : "#e35d6a";
 
-    const html = `
+    $("#admin-body").innerHTML = `
       <div class="card">
         <div class="card-head">
           <span class="card-title">Allgemein</span>
@@ -1045,7 +2016,10 @@ const Admin = {
 
         <div class="card-body">
           <div class="field">
-            <label for="set-name">Name des Geschäfts</label>
+            <label for="set-name">
+              Name des Geschäfts
+            </label>
+
             <input
               id="set-name"
               type="text"
@@ -1056,7 +2030,10 @@ const Admin = {
           </div>
 
           <div class="field">
-            <label for="set-logo">Logo-URL</label>
+            <label for="set-logo">
+              Logo-URL
+            </label>
+
             <input
               id="set-logo"
               type="url"
@@ -1066,7 +2043,10 @@ const Admin = {
           </div>
 
           <div class="field">
-            <label for="set-primary-color">Hauptfarbe</label>
+            <label for="set-primary-color">
+              Hauptfarbe
+            </label>
+
             <input
               id="set-primary-color"
               type="color"
@@ -1075,7 +2055,10 @@ const Admin = {
           </div>
 
           <div class="field">
-            <label for="set-accent-color">Akzentfarbe</label>
+            <label for="set-accent-color">
+              Akzentfarbe
+            </label>
+
             <input
               id="set-accent-color"
               type="color"
@@ -1096,57 +2079,22 @@ const Admin = {
       </div>
     `;
 
-    $("#admin-body").innerHTML = html;
-
-    $("#set-save")?.addEventListener("click", async () => {
-      const business_name =
-        $("#set-name")?.value.trim() || "";
-
-      const logo_url =
-        $("#set-logo")?.value.trim() || null;
-
-      const primary_color =
-        $("#set-primary-color")?.value || "#e95420";
-
-      const accent_color =
-        $("#set-accent-color")?.value || "#e35d6a";
-
-      if (!business_name) {
-        toast(
-          "Bitte einen Geschäftsnamen eingeben",
-          "error",
-        );
-        return;
-      }
-
-      try {
-        const saved = await DB.updateSettings({
-          business_name,
-          logo_url,
-          primary_color,
-          accent_color,
-        });
-
-        State.settings = saved;
-
-        if (window.App) {
-          App.paintBrand();
-          App.paintTheme();
-          App.paintLogo();
-        }
-
-        toast("Einstellungen gespeichert");
-      } catch (error) {
-        fail(error);
-      }
-    });
-  },
     $("#set-save")?.addEventListener(
       "click",
       async () => {
-        const input = $("#set-name");
         const business_name =
-          input?.value.trim() || "";
+          $("#set-name")?.value.trim() || "";
+
+        const logo_url =
+          $("#set-logo")?.value.trim() || null;
+
+        const primary_color =
+          $("#set-primary-color")?.value ||
+          "#e95420";
+
+        const accent_color =
+          $("#set-accent-color")?.value ||
+          "#e35d6a";
 
         if (!business_name) {
           toast(
@@ -1160,6 +2108,9 @@ const Admin = {
           const saved =
             await DB.updateSettings({
               business_name,
+              logo_url,
+              primary_color,
+              accent_color,
             });
 
           State.settings = saved;
@@ -1171,6 +2122,20 @@ const Admin = {
             App.paintBrand();
           }
 
+          if (
+            window.App &&
+            typeof App.paintTheme === "function"
+          ) {
+            App.paintTheme();
+          }
+
+          if (
+            window.App &&
+            typeof App.paintLogo === "function"
+          ) {
+            App.paintLogo();
+          }
+
           toast("Einstellungen gespeichert");
         } catch (error) {
           fail(error);
@@ -1178,40 +2143,98 @@ const Admin = {
       },
     );
   },
-  /* --------------------------------------------------------------------------
+
+  /* ------------------------------------------------------------------------
      Tagesabschluss
-     -------------------------------------------------------------------------- */
+     ------------------------------------------------------------------------ */
 
   renderClosing(orders) {
-    const today = orders.filter((o) => o.status !== 'storniert');
-    const revenue = today.reduce((acc, o) => acc + (o.total || 0), 0);
-    const cash = today.filter((o) => o.payment_method === 'bar').reduce((acc, o) => acc + (o.total || 0), 0);
-    const card = today.filter((o) => o.payment_method === 'karte').reduce((acc, o) => acc + (o.total || 0), 0);
+    const validOrders = orders.filter(
+      (order) =>
+        order.status !== "storniert",
+    );
+
+    const revenue = validOrders.reduce(
+      (total, order) =>
+        total + (Number(order.total) || 0),
+      0,
+    );
+
+    const cash = validOrders
+      .filter(
+        (order) =>
+          order.payment_method === "bar",
+      )
+      .reduce(
+        (total, order) =>
+          total + (Number(order.total) || 0),
+        0,
+      );
+
+    const card = validOrders
+      .filter(
+        (order) =>
+          order.payment_method === "karte",
+      )
+      .reduce(
+        (total, order) =>
+          total + (Number(order.total) || 0),
+        0,
+      );
+
+    const sortedOrders = [
+      ...validOrders,
+    ].sort(
+      (a, b) =>
+        new Date(b.created_at) -
+        new Date(a.created_at),
+    );
 
     let html = `
-      <div class="stats" style="margin-bottom:var(--space-6)">
+      <div
+        class="stats"
+        style="margin-bottom:var(--space-6)"
+      >
         <div class="stat accent">
-          <div class="stat-label">Umsatz heute</div>
-          <div class="stat-value">${money(revenue)}</div>
+          <div class="stat-label">
+            Umsatz heute
+          </div>
+          <div class="stat-value">
+            ${money(revenue)}
+          </div>
         </div>
+
         <div class="stat">
           <div class="stat-label">Bar</div>
-          <div class="stat-value">${money(cash)}</div>
+          <div class="stat-value">
+            ${money(cash)}
+          </div>
         </div>
+
         <div class="stat">
           <div class="stat-label">Karte</div>
-          <div class="stat-value">${money(card)}</div>
+          <div class="stat-value">
+            ${money(card)}
+          </div>
         </div>
+
         <div class="stat">
-          <div class="stat-label">Bestellungen</div>
-          <div class="stat-value">${today.length}</div>
+          <div class="stat-label">
+            Bestellungen
+          </div>
+          <div class="stat-value">
+            ${validOrders.length}
+          </div>
         </div>
       </div>
 
       <div class="card">
         <div class="card-head">
-          <span class="card-title">Bestellungen heute</span>
+          <span class="card-title">
+            Bestellungen heute
+          </span>
         </div>
+
         <div class="table-wrap">
           <table class="data">
             <thead>
@@ -1222,16 +2245,25 @@ const Admin = {
                 <th>Status</th>
               </tr>
             </thead>
+
             <tbody>
     `;
 
-    for (const o of today.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))) {
+    for (const order of sortedOrders) {
       html += `
         <tr>
-          <td>${fmtTime(o.created_at)}</td>
-          <td class="num">${money(o.total)}</td>
-          <td>${o.payment_method === 'bar' ? 'Bar' : 'Karte'}</td>
-          <td>${o.status === 'storniert' ? '<span class="text-error">Storniert</span>' : '✅'}</td>
+          <td>${fmtTime(order.created_at)}</td>
+          <td class="num">
+            ${money(order.total)}
+          </td>
+          <td>
+            ${
+              order.payment_method === "bar"
+                ? "Bar"
+                : "Karte"
+            }
+          </td>
+          <td>✅</td>
         </tr>
       `;
     }
@@ -1247,14 +2279,22 @@ const Admin = {
   },
 
   bind() {
-    $("#admin-subnav").addEventListener("click", (e) => {
-      const b = e.target.closest("button[data-tab]");
-      if (b) {
-        this.tab = b.dataset.tab;
+    $("#admin-subnav")?.addEventListener(
+      "click",
+      (event) => {
+        const button = event.target.closest(
+          "button[data-tab]",
+        );
+
+        if (!button || button.classList.contains("hidden")) {
+          return;
+        }
+
+        this.tab = button.dataset.tab;
         this.paintTabs();
         this.loadTab();
-      }
-    });
+      },
+    );
   },
 };
 
