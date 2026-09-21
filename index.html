@@ -77,7 +77,11 @@
           <button type="button" data-key="7">7</button>
           <button type="button" data-key="8">8</button>
           <button type="button" data-key="9">9</button>
-          <button type="button" data-key="clear" aria-label="Eingabe löschen">
+          <button
+            type="button"
+            data-key="clear"
+            aria-label="Eingabe löschen"
+          >
             C
           </button>
           <button type="button" data-key="0">0</button>
@@ -219,7 +223,6 @@
       </header>
 
       <main class="main">
-        <!-- Kasse -->
         <section class="view" data-view-panel="kasse">
           <div class="pos-left">
             <div
@@ -313,7 +316,6 @@
           </aside>
         </section>
 
-        <!-- Bestellungen -->
         <section class="view hidden" data-view-panel="bestellungen">
           <div class="page">
             <div class="page-head">
@@ -432,7 +434,6 @@
           </div>
         </section>
 
-        <!-- Verwaltung -->
         <section class="view hidden" data-view-panel="verwaltung">
           <div class="page">
             <div class="page-head">
@@ -510,10 +511,39 @@
     <script src="js/admin.js"></script>
 
     <script>
+      async function loadBusinessName() {
+        try {
+          const settings = await DB.getSettings();
+          const name =
+            String(settings?.business_name || "").trim() ||
+            "Masora Döner";
+
+          document
+            .querySelectorAll(".business-name-display")
+            .forEach((element) => {
+              element.textContent = name;
+            });
+
+          document.title = `${name} — Kasse`;
+
+          if (window.State) {
+            State.settings = settings;
+          }
+        } catch (error) {
+          console.error(
+            "Geschäftsname konnte nicht geladen werden:",
+            error
+          );
+        }
+      }
+
       Kasse.bind();
       Orders.bind();
       Admin.bind();
-      App.boot();
+
+      loadBusinessName().finally(() => {
+        App.boot();
+      });
     </script>
   </body>
 </html>
