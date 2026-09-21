@@ -1019,28 +1019,36 @@ const Admin = {
 
   renderSettings() {
     const s = State.settings || {};
+    const businessName =
+      s.business_name || s.shop_name || "Masora Döner";
 
-    let html = `
+    const html = `
       <div class="card">
         <div class="card-head">
           <span class="card-title">Allgemein</span>
         </div>
+
         <div class="card-body">
           <div class="field">
             <label for="set-name">Name des Geschäfts</label>
-            <input id="set-name" type="text" value="${esc(s.shop_name || '')}" />
-          </div>
-          <div class="field">
-            <label for="set-street">Straße</label>
-            <input id="set-street" type="text" value="${esc(s.street || '')}" />
-          </div>
-          <div class="field">
-            <label for="set-city">Stadt</label>
-            <input id="set-city" type="text" value="${esc(s.city || '')}" />
+            <input
+              id="set-name"
+              type="text"
+              value="${esc(businessName)}"
+              placeholder="Masora Döner"
+              autocomplete="organization"
+            />
           </div>
         </div>
+
         <div class="card-foot">
-          <button class="btn btn-primary" id="set-save">Speichern</button>
+          <button
+            class="btn btn-primary"
+            id="set-save"
+            type="button"
+          >
+            Speichern
+          </button>
         </div>
       </div>
     `;
@@ -1048,21 +1056,34 @@ const Admin = {
     $("#admin-body").innerHTML = html;
 
     $("#set-save")?.addEventListener("click", async () => {
-      const shop_name = $("#set-name").value.trim();
-      const street = $("#set-street").value.trim();
-      const city = $("#set-city").value.trim();
+      const business_name = $("#set-name").value.trim();
+
+      if (!business_name) {
+        toast("Bitte einen Geschäftsnamen eingeben", "error");
+        return;
+      }
 
       try {
-        await DB.updateSettings({ shop_name, street, city });
-        State.settings = await DB.getSettings();
-        App.paintBrand();
+        const saved = await DB.updateSettings({
+          business_name,
+        });
+
+        State.settings = saved;
+
+        if (typeof App.paintBrand === "function") {
+          App.paintBrand();
+        }
+
+        if (typeof updateBusinessName === "function") {
+          updateBusinessName(business_name);
+        }
+
         toast("Einstellungen gespeichert");
       } catch (err) {
         fail(err);
       }
     });
   },
-
   /* --------------------------------------------------------------------------
      Tagesabschluss
      -------------------------------------------------------------------------- */
