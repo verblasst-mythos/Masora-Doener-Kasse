@@ -1017,46 +1017,160 @@ const Admin = {
      Einstellungen
      -------------------------------------------------------------------------- */
 
-  renderSettings() {
-    const settings = State.settings || {};
+renderSettings() {
+  const settings = State.settings || {};
 
-    const businessName =
-      String(settings.business_name || "").trim() ||
-      "Masora Döner";
+  const businessName =
+    String(settings.business_name || "").trim() ||
+    "Masora Döner";
 
-    const html = `
-      <div class="card">
-        <div class="card-head">
-          <span class="card-title">Allgemein</span>
+  const logoUrl =
+    String(settings.logo_url || "").trim();
+
+  const primaryColor =
+    /^#[0-9a-fA-F]{6}$/.test(settings.primary_color)
+      ? settings.primary_color
+      : "#e95420";
+
+  const accentColor =
+    /^#[0-9a-fA-F]{6}$/.test(settings.accent_color)
+      ? settings.accent_color
+      : "#e35d6a";
+
+  const html = `
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">Allgemein</span>
+      </div>
+
+      <div class="card-body">
+        <div class="field">
+          <label for="set-name">Name des Geschäfts</label>
+          <input
+            id="set-name"
+            class="input"
+            type="text"
+            value="${esc(businessName)}"
+            placeholder="Masora Döner"
+          />
         </div>
 
-        <div class="card-body">
-          <div class="field">
-            <label for="set-name">Name des Geschäfts</label>
+        <div class="field">
+          <label for="set-logo">Logo-URL</label>
+          <input
+            id="set-logo"
+            class="input"
+            type="url"
+            value="${esc(logoUrl)}"
+            placeholder="https://example.com/logo.png"
+          />
+          <small class="muted">
+            Eine direkte URL zu einem PNG-, JPG- oder SVG-Logo.
+          </small>
+        </div>
 
-            <input
-              id="set-name"
-              type="text"
-              value="${esc(businessName)}"
-              placeholder="Masora Döner"
-              autocomplete="organization"
-            />
+        <div class="settings-color-grid">
+          <div class="field">
+            <label for="set-primary-color">Hauptfarbe</label>
+            <div class="color-input-row">
+              <input
+                id="set-primary-color"
+                type="color"
+                value="${primaryColor}"
+              />
+              <span id="set-primary-color-value">
+                ${primaryColor}
+              </span>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="set-accent-color">Akzentfarbe</label>
+            <div class="color-input-row">
+              <input
+                id="set-accent-color"
+                type="color"
+                value="${accentColor}"
+              />
+              <span id="set-accent-color-value">
+                ${accentColor}
+              </span>
+            </div>
           </div>
         </div>
-
-        <div class="card-foot">
-          <button
-            class="btn btn-primary"
-            id="set-save"
-            type="button"
-          >
-            Speichern
-          </button>
-        </div>
       </div>
-    `;
 
-    $("#admin-body").innerHTML = html;
+      <div class="card-foot">
+        <button
+          class="btn btn-primary"
+          id="set-save"
+          type="button"
+        >
+          Speichern
+        </button>
+      </div>
+    </div>
+  `;
+
+  $("#admin-body").innerHTML = html;
+
+  const primaryInput = $("#set-primary-color");
+  const accentInput = $("#set-accent-color");
+
+  primaryInput?.addEventListener("input", () => {
+    $("#set-primary-color-value").textContent =
+      primaryInput.value;
+  });
+
+  accentInput?.addEventListener("input", () => {
+    $("#set-accent-color-value").textContent =
+      accentInput.value;
+  });
+
+  $("#set-save")?.addEventListener(
+    "click",
+    async () => {
+      const business_name =
+        $("#set-name").value.trim();
+
+      const logo_url =
+        $("#set-logo").value.trim() || null;
+
+      const primary_color =
+        $("#set-primary-color").value;
+
+      const accent_color =
+        $("#set-accent-color").value;
+
+      if (!business_name) {
+        toast(
+          "Bitte einen Geschäftsnamen eingeben",
+          "error",
+        );
+        return;
+      }
+
+      try {
+        const saved =
+          await DB.updateSettings({
+            business_name,
+            logo_url,
+            primary_color,
+            accent_color,
+          });
+
+        State.settings = saved;
+
+        App.paintBrand();
+        App.paintTheme();
+
+        toast("Einstellungen gespeichert");
+      } catch (error) {
+        fail(error);
+      }
+    },
+  );
+},
 
     $("#set-save")?.addEventListener(
       "click",
