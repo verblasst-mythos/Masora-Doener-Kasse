@@ -263,23 +263,49 @@ const DB = {
   },
 
   /* ---------- Einstellungen ---------- */
-  async getSettings() {
-    const rows = unwrap(await sb.from("settings").select("*").eq("id", 1));
-    if (rows && rows.length) return rows[0];
-    return unwrap(
-      await sb.from("settings").insert({ id: 1 }).select().single(),
-    );
-  },
-  async updateSettings(patch) {
-    return unwrap(
-      await sb
-        .from("settings")
-        .update({ ...patch, updated_at: new Date().toISOString() })
-        .eq("id", 1)
-        .select()
-        .single(),
-    );
-  },
-};
+async getSettings() {
+  const rows = unwrap(
+    await sb
+      .from("settings")
+      .select("id, business_name, updated_at")
+      .eq("id", 1)
+  );
 
-window.DB = DB;
+  if (rows && rows.length) return rows[0];
+
+  return unwrap(
+    await sb
+      .from("settings")
+      .insert({
+        id: 1,
+        business_name: "Masora Döner",
+      })
+      .select("id, business_name, updated_at")
+      .single()
+  );
+},
+
+async updateSettings(patch) {
+  const businessName = String(
+    patch.business_name ?? patch.name ?? ""
+  ).trim();
+
+  return unwrap(
+    await sb
+      .from("settings")
+      .upsert(
+        {
+          id: 1,
+          business_name: businessName,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "id" }
+      )
+      .select("id, business_name, updated_at")
+      .single()
+  );
+},
+
+async saveSettings(patch) {
+  return this.updateSettings(patch);
+},
