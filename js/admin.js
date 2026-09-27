@@ -120,7 +120,6 @@ const Admin = {
         this.shifts = result[0];
         this.staff = result[1];
         this.renderShifts();
-} else if (this.tab === "einstellungen") {
   State.settings = await DB.getSettings();
 
   if (
@@ -1970,12 +1969,7 @@ const Admin = {
       },
     );
   },
-
   /* ------------------------------------------------------------------------
-     Einstellungen
-     ------------------------------------------------------------------------ */
-
-   /* ------------------------------------------------------------------------
      Einstellungen und Personalisierung
      ------------------------------------------------------------------------ */
 
