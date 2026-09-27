@@ -67,7 +67,7 @@ const ACCENT_PRESETS = {
   },
 };
 
-const DEFAULT_SETTINGS = window.DEFAULT_SETTINGS || {
+const APP_DEFAULT_SETTINGS = window.DEFAULT_SETTINGS || {
   business_name: "Masora Döner",
   business_subtitle: "Kassensystem",
   logo_url: null,
@@ -161,20 +161,26 @@ function isValidColor(value) {
 }
 
 function normalizeColor(value, fallback) {
-  return isValidColor(value) ? String(value).trim() : fallback;
+  return isValidColor(value)
+    ? String(value).trim()
+    : fallback;
 }
 
 function getSettings() {
   return {
-    ...DEFAULT_SETTINGS,
+    ...APP_DEFAULT_SETTINGS,
     ...(State.settings || {}),
   };
 }
 
 function getSessionMinutes() {
-  const value = Number(getSettings().session_timeout_minutes);
+  const value = Number(
+    getSettings().session_timeout_minutes,
+  );
 
-  return [15, 30, 60, 120].includes(value) ? value : 30;
+  return [15, 30, 60, 120].includes(value)
+    ? value
+    : 30;
 }
 
 function toast(message, kind = "") {
@@ -199,7 +205,10 @@ function toast(message, kind = "") {
 function fail(error) {
   console.error(error);
 
-  toast(error?.message || "Ein Fehler ist aufgetreten", "error");
+  toast(
+    error?.message || "Ein Fehler ist aufgetreten",
+    "error",
+  );
 }
 
 /* ==========================================================================
@@ -256,14 +265,21 @@ function openModal({
         ${bodyHTML}
       </div>
 
-      ${footHTML ? `<div class="modal-foot">${footHTML}</div>` : ""}
+      ${
+        footHTML
+          ? `<div class="modal-foot">${footHTML}</div>`
+          : ""
+      }
     </div>
   `;
 
   document.body.appendChild(overlay);
 
   overlay.addEventListener("click", (event) => {
-    if (event.target === overlay || event.target.closest("[data-close]")) {
+    if (
+      event.target === overlay ||
+      event.target.closest("[data-close]")
+    ) {
       closeModal();
     }
   });
@@ -291,7 +307,11 @@ function closeModal() {
   }
 
   if (modalKeyHandler) {
-    document.removeEventListener("keydown", modalKeyHandler);
+    document.removeEventListener(
+      "keydown",
+      modalKeyHandler,
+    );
+
     modalKeyHandler = null;
   }
 }
@@ -300,12 +320,19 @@ function closeModal() {
    Bestätigung
    ========================================================================== */
 
-function confirmDialog(title, text, confirmLabel = "Bestätigen") {
+function confirmDialog(
+  title,
+  text,
+  confirmLabel = "Bestätigen",
+) {
   return new Promise((resolve) => {
     let answered = false;
 
     const finish = (value) => {
-      if (answered) return;
+      if (answered) {
+        return;
+      }
+
       answered = true;
       resolve(value);
     };
@@ -322,19 +349,27 @@ function confirmDialog(title, text, confirmLabel = "Bestätigen") {
           Abbrechen
         </button>
 
-        <button class="btn btn-primary" type="button" data-yes>
+        <button
+          class="btn btn-primary"
+          type="button"
+          data-yes
+        >
           ${esc(confirmLabel)}
         </button>
       `,
       onMount(root) {
-        $("[data-yes]", root)?.addEventListener("click", () => {
-          closeModal();
-          finish(true);
-        });
+        $("[data-yes]", root)?.addEventListener(
+          "click",
+          () => {
+            closeModal();
+            finish(true);
+          },
+        );
 
-        $("[data-close]", root)?.addEventListener("click", () => {
-          finish(false);
-        });
+        $("[data-close]", root)?.addEventListener(
+          "click",
+          () => finish(false),
+        );
       },
     });
   });
@@ -367,9 +402,14 @@ const Login = {
   },
 
   paint() {
-    $$("#pin-display .pin-dot").forEach((dot, index) => {
-      dot.classList.toggle("filled", index < this.pin.length);
-    });
+    $$("#pin-display .pin-dot").forEach(
+      (dot, index) => {
+        dot.classList.toggle(
+          "filled",
+          index < this.pin.length,
+        );
+      },
+    );
   },
 
   press(key) {
@@ -383,7 +423,10 @@ const Login = {
       this.pin = this.pin.slice(0, -1);
     } else if (key === "clear") {
       this.pin = "";
-    } else if (/^[0-9]$/.test(String(key)) && this.pin.length < 4) {
+    } else if (
+      /^[0-9]$/.test(String(key)) &&
+      this.pin.length < 4
+    ) {
       this.pin += key;
     }
 
@@ -398,12 +441,15 @@ const Login = {
     const errorElement = $("#login-error");
 
     const match = State.staff.find(
-      (staff) => String(staff.pin) === this.pin && staff.is_active,
+      (staff) =>
+        String(staff.pin) === this.pin &&
+        staff.is_active,
     );
 
     if (!match) {
       if (errorElement) {
-        errorElement.textContent = "PIN nicht erkannt";
+        errorElement.textContent =
+          "PIN nicht erkannt";
       }
 
       this.pin = "";
@@ -418,13 +464,18 @@ const Login = {
   },
 
   bind() {
-    $("#pin-pad")?.addEventListener("click", (event) => {
-      const button = event.target.closest("button[data-key]");
+    $("#pin-pad")?.addEventListener(
+      "click",
+      (event) => {
+        const button = event.target.closest(
+          "button[data-key]",
+        );
 
-      if (button) {
-        this.press(button.dataset.key);
-      }
-    });
+        if (button) {
+          this.press(button.dataset.key);
+        }
+      },
+    );
 
     document.addEventListener("keydown", (event) => {
       if ($("#login")?.classList.contains("hidden")) {
@@ -452,7 +503,9 @@ const Duty = {
   warned: false,
 
   isOn() {
-    return Boolean(State.shift && !State.shift.ended_at);
+    return Boolean(
+      State.shift && !State.shift.ended_at,
+    );
   },
 
   async load() {
@@ -464,17 +517,21 @@ const Duty = {
     }
 
     try {
-      const openShift = await DB.openShift(State.user.id);
+      const openShift = await DB.openShift(
+        State.user.id,
+      );
 
-      /*
-       * Eine alte offene Schicht wird nicht automatisch übernommen.
-       * Mitarbeitende stempeln sich bewusst neu ein.
-       */
-      if (openShift && openShift.ended_at === null) {
+      if (
+        openShift &&
+        openShift.ended_at === null
+      ) {
         State.shift = null;
       }
     } catch (error) {
-      console.error("Fehler beim Laden der Schicht:", error);
+      console.error(
+        "Fehler beim Laden der Schicht:",
+        error,
+      );
     }
 
     this.paint();
@@ -486,11 +543,18 @@ const Duty = {
     }
 
     try {
-      State.shift = await DB.clockIn(State.user.id, State.user.name);
+      State.shift = await DB.clockIn(
+        State.user.id,
+        State.user.name,
+      );
 
       this.paint();
 
-      toast(`Eingestempelt um ${fmtTime(State.shift.started_at)}`);
+      toast(
+        `Eingestempelt um ${fmtTime(
+          State.shift.started_at,
+        )}`,
+      );
     } catch (error) {
       fail(error);
     }
@@ -519,11 +583,15 @@ const Duty = {
     this.paint();
 
     const worked = fmtDuration(
-      (Date.now() - new Date(startedAt).getTime()) / 1000,
+      (Date.now() -
+        new Date(startedAt).getTime()) /
+        1000,
     );
 
     if (!auto) {
-      toast(`Ausgestempelt — Dienstzeit ${worked}`);
+      toast(
+        `Ausgestempelt — Dienstzeit ${worked}`,
+      );
     }
 
     return worked;
@@ -542,20 +610,32 @@ const Duty = {
     chip.classList.toggle("on", onDuty);
     chip.classList.toggle("off", !onDuty);
 
-    $("#duty-banner")?.classList.toggle("hidden", onDuty);
+    $("#duty-banner")?.classList.toggle(
+      "hidden",
+      onDuty,
+    );
 
     if (onDuty) {
       const seconds =
-        (Date.now() - new Date(State.shift.started_at).getTime()) / 1000;
+        (Date.now() -
+          new Date(
+            State.shift.started_at,
+          ).getTime()) /
+        1000;
 
       $("#duty-state").textContent = "Im Dienst";
+
       $("#duty-since").textContent =
-        `seit ${fmtTime(State.shift.started_at)} · ${fmtDuration(seconds)}`;
+        `seit ${fmtTime(
+          State.shift.started_at,
+        )} · ${fmtDuration(seconds)}`;
 
       button.textContent = "Ausstempeln";
       button.classList.remove("btn-primary");
     } else {
-      $("#duty-state").textContent = "Nicht im Dienst";
+      $("#duty-state").textContent =
+        "Nicht im Dienst";
+
       $("#duty-since").textContent =
         "Zum Kassieren bitte einstempeln";
 
@@ -569,9 +649,14 @@ const Duty = {
 
     this.warned = false;
 
-    this.deadline = Date.now() + getSessionMinutes() * 60 * 1000;
+    this.deadline =
+      Date.now() +
+      getSessionMinutes() * 60 * 1000;
 
-    this.ticker = setInterval(() => this.tick(), 1000);
+    this.ticker = setInterval(
+      () => this.tick(),
+      1000,
+    );
 
     this.tick();
   },
@@ -585,19 +670,29 @@ const Duty = {
   },
 
   tick() {
-    const remaining = Math.max(0, (this.deadline - Date.now()) / 1000);
+    const remaining = Math.max(
+      0,
+      (this.deadline - Date.now()) / 1000,
+    );
+
     const element = $("#session-left");
 
     if (element) {
       element.textContent = fmtClock(remaining);
-      element.classList.toggle("warn", remaining <= 300);
+      element.classList.toggle(
+        "warn",
+        remaining <= 300,
+      );
     }
 
     if (this.isOn()) {
       this.paint();
     }
 
-    if (remaining <= 300 && !this.warned) {
+    if (
+      remaining <= 300 &&
+      !this.warned
+    ) {
       this.warned = true;
 
       toast(
@@ -647,7 +742,11 @@ const Duty = {
         </p>
       `,
       footHTML: `
-        <button class="btn" type="button" data-close>
+        <button
+          class="btn"
+          type="button"
+          data-close
+        >
           Abbrechen
         </button>
 
@@ -660,10 +759,13 @@ const Duty = {
         </button>
       `,
       onMount(root) {
-        $("#duty-now", root)?.addEventListener("click", async () => {
-          closeModal();
-          await Duty.clockIn();
-        });
+        $("#duty-now", root)?.addEventListener(
+          "click",
+          async () => {
+            closeModal();
+            await Duty.clockIn();
+          },
+        );
       },
     });
 
@@ -671,21 +773,25 @@ const Duty = {
   },
 
   bind() {
-    $("#duty-toggle")?.addEventListener("click", async () => {
-      if (this.isOn()) {
-        const confirmed = await confirmDialog(
-          "Dienst beenden?",
-          "Du wirst ausgestempelt. Zum Kassieren musst du dich danach wieder einstempeln.",
-          "Ausstempeln",
-        );
+    $("#duty-toggle")?.addEventListener(
+      "click",
+      async () => {
+        if (this.isOn()) {
+          const confirmed =
+            await confirmDialog(
+              "Dienst beenden?",
+              "Du wirst ausgestempelt. Zum Kassieren musst du dich danach wieder einstempeln.",
+              "Ausstempeln",
+            );
 
-        if (confirmed) {
-          await this.clockOut(false);
+          if (confirmed) {
+            await this.clockOut(false);
+          }
+        } else {
+          await this.clockIn();
         }
-      } else {
-        await this.clockIn();
-      }
-    });
+      },
+    );
   },
 };
 
@@ -704,14 +810,16 @@ const App = {
     Duty.bind();
 
     try {
-      const [staff, settings] = await Promise.all([
-        DB.listStaff(true),
-        DB.getSettings(),
-      ]);
+      const [staff, settings] =
+        await Promise.all([
+          DB.listStaff(true),
+          DB.getSettings(),
+        ]);
 
       State.staff = staff;
+
       State.settings = {
-        ...DEFAULT_SETTINGS,
+        ...APP_DEFAULT_SETTINGS,
         ...settings,
       };
 
@@ -730,7 +838,8 @@ const App = {
       const loginError = $("#login-error");
 
       if (loginError) {
-        loginError.textContent = "Keine Verbindung zur Datenbank";
+        loginError.textContent =
+          "Keine Verbindung zur Datenbank";
       }
     }
   },
@@ -749,19 +858,23 @@ const App = {
 
     const name =
       String(settings.business_name || "").trim() ||
-      DEFAULT_SETTINGS.business_name;
+      APP_DEFAULT_SETTINGS.business_name;
 
     const subtitle =
       String(settings.business_subtitle || "").trim() ||
-      DEFAULT_SETTINGS.business_subtitle;
+      APP_DEFAULT_SETTINGS.business_subtitle;
 
-    $$(".business-name-display").forEach((element) => {
-      element.textContent = name;
-    });
+    $$(".business-name-display").forEach(
+      (element) => {
+        element.textContent = name;
+      },
+    );
 
-    $$(".business-subtitle-display").forEach((element) => {
-      element.textContent = subtitle;
-    });
+    $$(".business-subtitle-display").forEach(
+      (element) => {
+        element.textContent = subtitle;
+      },
+    );
 
     document.title = `${name} — Kasse`;
   },
@@ -774,22 +887,58 @@ const App = {
       ACCENT_PRESETS[settings.accent_preset] ||
       ACCENT_PRESETS.paprika;
 
-    const primary = isValidColor(settings.primary_color)
-      ? normalizeColor(settings.primary_color, preset.primary)
+    const primary = isValidColor(
+      settings.primary_color,
+    )
+      ? normalizeColor(
+          settings.primary_color,
+          preset.primary,
+        )
       : preset.primary;
 
-    const accent = isValidColor(settings.accent_color)
-      ? normalizeColor(settings.accent_color, preset.accent)
+    const accent = isValidColor(
+      settings.accent_color,
+    )
+      ? normalizeColor(
+          settings.accent_color,
+          preset.accent,
+        )
       : preset.accent;
 
-    root.style.setProperty("--brand-primary", primary);
-    root.style.setProperty("--brand-accent", accent);
+    root.style.setProperty(
+      "--brand-primary",
+      primary,
+    );
 
-    root.style.setProperty("--color-primary", primary);
-    root.style.setProperty("--color-primary-hover", preset.hover);
-    root.style.setProperty("--color-primary-active", preset.active);
-    root.style.setProperty("--color-primary-soft", preset.soft);
-    root.style.setProperty("--color-accent", accent);
+    root.style.setProperty(
+      "--brand-accent",
+      accent,
+    );
+
+    root.style.setProperty(
+      "--color-primary",
+      primary,
+    );
+
+    root.style.setProperty(
+      "--color-primary-hover",
+      preset.hover,
+    );
+
+    root.style.setProperty(
+      "--color-primary-active",
+      preset.active,
+    );
+
+    root.style.setProperty(
+      "--color-primary-soft",
+      preset.soft,
+    );
+
+    root.style.setProperty(
+      "--color-accent",
+      accent,
+    );
 
     root.style.setProperty("--accent", accent);
     root.style.setProperty("--primary", primary);
@@ -799,6 +948,7 @@ const App = {
 
   applyThemeMode(mode) {
     const root = document.documentElement;
+
     const preferredMode =
       mode === "light" || mode === "dark"
         ? mode
@@ -815,368 +965,54 @@ const App = {
           : "dark"
         : preferredMode;
 
-    root.setAttribute("data-theme", activeMode);
+    root.setAttribute(
+      "data-theme",
+      activeMode,
+    );
+
     root.dataset.themeMode = preferredMode;
 
-    this.paintThemeToggleIcon(activeMode, preferredMode);
-  },
-
-  paintThemeToggleIcon(activeMode, preferredMode) {
-    $$("[data-theme-toggle]").forEach((toggle) => {
-      const modeLabel =
-        preferredMode === "system"
-          ? "Systemdesign aktiv"
-          : activeMode === "dark"
-            ? "Dunkles Design aktiv"
-            : "Helles Design aktiv";
-
-      toggle.setAttribute(
-        "aria-label",
-        `${modeLabel} — Design wechseln`,
-      );
-
-      toggle.title = modeLabel;
-
-      toggle.innerHTML =
-        activeMode === "dark"
-          ? `
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-            >
-              <circle cx="12" cy="12" r="4.5" />
-              <path
-                d="M12 2v2M12 20v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M2 12h2M20 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"
-              />
-            </svg>
-          `
-          : `
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-            >
-              <path
-                d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"
-              />
-            </svg>
-          `;
-    });
-  },
-
-  paintLogo() {
-    const settings = getSettings();
-    const name =
-      String(settings.business_name || "").trim() ||
-      DEFAULT_SETTINGS.business_name;
-
-    const logoUrl = String(settings.logo_url || "").trim();
-
-    $$(".business-logo").forEach((container) => {
-      if (!logoUrl) {
-        container.innerHTML = `
-          <span class="default-logo" aria-hidden="true">🍢</span>
-        `;
-
-        container.classList.remove("has-image");
-        return;
-      }
-
-      container.innerHTML = `
-        <img
-          src="${esc(logoUrl)}"
-          alt="${esc(name)} Logo"
-          loading="eager"
-          onerror="this.parentElement.innerHTML='<span class=&quot;default-logo&quot; aria-hidden=&quot;true&quot;>🍢</span>';"
-        />
-      `;
-
-      container.classList.add("has-image");
-    });
-  },
-
-  paintCompactMode() {
-    document.body.classList.toggle(
-      "compact-mode",
-      Boolean(getSettings().compact_mode),
+    this.paintThemeToggleIcon(
+      activeMode,
+      preferredMode,
     );
   },
 
-  paintVatVisibility() {
-    $("#sum-vat")?.closest(".sum-row")?.classList.toggle(
-      "hidden",
-      !Boolean(getSettings().show_vat),
-    );
-  },
+  paintThemeToggleIcon(
+    activeMode,
+    preferredMode,
+  ) {
+    $$("[data-theme-toggle]").forEach(
+      (toggle) => {
+        const modeLabel =
+          preferredMode === "system"
+            ? "Systemdesign aktiv"
+            : activeMode === "dark"
+              ? "Dunkles Design aktiv"
+              : "Helles Design aktiv";
 
-  paintDefaultPayment() {
-    const settings = getSettings();
-    const cashButton = $("#pay-cash");
-    const cardButton = $("#pay-card");
+        toggle.setAttribute(
+          "aria-label",
+          `${modeLabel} — Design wechseln`,
+        );
 
-    if (!cashButton || !cardButton) {
-      return;
-    }
+        toggle.title = modeLabel;
 
-    const payment = settings.default_payment === "card" ? "card" : "cash";
-
-    cashButton.classList.toggle("btn-primary", payment === "cash");
-    cardButton.classList.toggle("btn-primary", payment === "card");
-  },
-
-  async afterLogin() {
-    $("#user-name").textContent = State.user.name;
-
-    const roleNames = {
-      admin: "Admin",
-      service: "Serviceleitung",
-      lager: "Lager",
-      kasse: "Kasse",
-    };
-
-    $("#user-role").textContent =
-      roleNames[State.user.role] || "Kasse";
-
-    State.userRole = State.user.role;
-
-    const adminNavigation = $("#nav-admin");
-
-    if (adminNavigation) {
-      adminNavigation.classList.toggle(
-        "hidden",
-        !["admin", "service", "lager"].includes(State.user.role),
-      );
-    }
-
-    try {
-      const [products, discounts] = await Promise.all([
-        DB.listProducts(true),
-        DB.listDiscounts(true),
-      ]);
-
-      State.products = products;
-      State.discounts = discounts;
-
-      await Duty.load();
-      Duty.startSession();
-
-      Kasse.render();
-      this.go("kasse");
-    } catch (error) {
-      fail(error);
-    }
-  },
-
-  async logout({ auto = false } = {}) {
-    if (!auto && Duty.isOn()) {
-      const confirmed = await confirmDialog(
-        "Abmelden und ausstempeln?",
-        "Du bist noch im Dienst. Beim Abmelden wirst du ausgestempelt.",
-        "Abmelden",
-      );
-
-      if (!confirmed) {
-        return;
-      }
-
-      await Duty.clockOut(false);
-    }
-
-    Duty.stopSession();
-
-    State.user = null;
-    State.shift = null;
-    State.cart = [];
-    State.discountId = "";
-    State.coop = null;
-    State.userRole = null;
-
-    closeModal();
-    Login.show();
-  },
-
-  bindNav() {
-    $("#nav")?.addEventListener("click", (event) => {
-      const button = event.target.closest("button[data-view]");
-
-      if (button) {
-        this.go(button.dataset.view);
-      }
-    });
-
-    $("#logout")?.addEventListener("click", () => this.logout());
-
-    $("#duty-banner-btn")?.addEventListener("click", () => {
-      Duty.clockIn();
-    });
-  },
-
-  go(view) {
-    State.view = view;
-
-    $$("#nav button[data-view]").forEach((button) => {
-      button.setAttribute(
-        "aria-current",
-        String(button.dataset.view === view),
-      );
-    });
-
-    $$(".view").forEach((panel) => {
-      panel.classList.toggle(
-        "hidden",
-        panel.dataset.viewPanel !== view,
-      );
-    });
-
-    const pageTitles = {
-      kasse: "Kasse",
-      bestellungen: "Bestellungen",
-      verwaltung: "Verwaltung",
-    };
-
-    $("#topbar-title").textContent =
-      pageTitles[view] || "Masora Döner";
-
-    if (view === "bestellungen") {
-      Orders.load();
-    }
-
-    if (view === "verwaltung") {
-      Admin.open();
-    }
-  },
-
-  bindTheme() {
-    this.systemThemeQuery = window.matchMedia(
-      "(prefers-color-scheme: light)",
-    );
-
-    this.systemThemeHandler = () => {
-      if (getSettings().theme_mode === "system") {
-        this.applyThemeMode("system");
-      }
-    };
-
-    if (typeof this.systemThemeQuery.addEventListener === "function") {
-      this.systemThemeQuery.addEventListener(
-        "change",
-        this.systemThemeHandler,
-      );
-    }
-
-    $$("[data-theme-toggle]").forEach((toggle) => {
-      toggle.addEventListener("click", async () => {
-        const current =
-          document.documentElement.getAttribute("data-theme") === "light"
-            ? "light"
-            : "dark";
-
-        const next = current === "dark" ? "light" : "dark";
-
-        State.settings = {
-          ...getSettings(),
-          theme_mode: next,
-        };
-
-        this.applySettings();
-
-        try {
-          State.settings = await DB.updateSettings(State.settings);
-          this.applySettings();
-          toast(
-            next === "dark"
-              ? "Dunkles Design aktiviert"
-              : "Helles Design aktiviert",
-          );
-        } catch (error) {
-          fail(error);
-        }
-      });
-    });
-  },
-};
-
-/* ==========================================================================
-   Discord-Quittung über Cloudflare Worker
-   ========================================================================== */
-
-const DISCORD_WORKER_URL =
-  "https://masora-doener-kasse-worker.finnwoschech.workers.dev/receipt";
-
-async function sendReceiptToDiscord(order) {
-  if (!order) {
-    throw new Error("Keine Bestellung zum Senden vorhanden.");
-  }
-
-  const items = Array.isArray(order.items)
-    ? order.items
-    : Array.isArray(order.products)
-      ? order.products
-      : State.cart;
-
-  const response = await fetch(DISCORD_WORKER_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      orderId:
-        order.id ||
-        order.order_id ||
-        order.number ||
-        "Unbekannt",
-
-      customerName:
-        order.customerName ||
-        order.customer_name ||
-        order.customer ||
-        "Gast",
-
-      total:
-        order.total ||
-        order.total_amount ||
-        order.amount ||
-        order.grand_total ||
-        0,
-
-      currency: order.currency || "EUR",
-      staffName: State.user?.name || "Unbekannt",
-      items,
-    }),
-  });
-
-  const result = await response.json().catch(() => null);
-
-  if (!response.ok) {
-    throw new Error(
-      result?.error ||
-        `Discord-Quittung konnte nicht gesendet werden (${response.status}).`,
-    );
-  }
-
-  return result;
-}
-
-/* ==========================================================================
-   Globale Exporte
-   ========================================================================== */
-
-window.sendReceiptToDiscord = sendReceiptToDiscord;
-
-window.App = App;
-window.State = State;
-window.Duty = Duty;
-window.Login = Login;
-
-window.ACCENT_PRESETS = ACCENT_PRESETS;
-window.getSettings = getSettings;
-window.getSessionMinutes = getSessionMinutes;
+        toggle.innerHTML =
+          activeMode === "dark"
+            ? `
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+              >
+                <circle cx="12" cy="12" r="4.5" />
+                <path
+                  d="M12 2v2M12 20v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M2 12h2M20 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"
+                />
+              </svg>
+            `
