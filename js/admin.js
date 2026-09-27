@@ -120,21 +120,21 @@ const Admin = {
         this.shifts = result[0];
         this.staff = result[1];
         this.renderShifts();
-  State.settings = await DB.getSettings();
+      } else if (this.tab === "einstellungen") {
+        State.settings = await DB.getSettings();
 
-  if (
-    window.App &&
-    typeof App.applySettings === "function"
-  ) {
-    App.applySettings();
-  } else {
-    App.paintBrand?.();
-    App.paintTheme?.();
-    App.paintLogo?.();
-  }
+        if (
+          window.App &&
+          typeof App.applySettings === "function"
+        ) {
+          App.applySettings();
+        } else {
+          App.paintBrand?.();
+          App.paintTheme?.();
+          App.paintLogo?.();
+        }
 
-  this.renderSettings();
-}
+        this.renderSettings();
       } else if (this.tab === "abschluss") {
         const orders = await DB.listOrders({
           from: startOfDay(0).toISOString(),
