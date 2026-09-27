@@ -120,31 +120,22 @@ const Admin = {
         this.shifts = result[0];
         this.staff = result[1];
         this.renderShifts();
-      } else if (this.tab === "einstellungen") {
-        State.settings = await DB.getSettings();
+} else if (this.tab === "einstellungen") {
+  State.settings = await DB.getSettings();
 
-        if (
-          window.App &&
-          typeof App.paintBrand === "function"
-        ) {
-          App.paintBrand();
-        }
+  if (
+    window.App &&
+    typeof App.applySettings === "function"
+  ) {
+    App.applySettings();
+  } else {
+    App.paintBrand?.();
+    App.paintTheme?.();
+    App.paintLogo?.();
+  }
 
-        if (
-          window.App &&
-          typeof App.paintTheme === "function"
-        ) {
-          App.paintTheme();
-        }
-
-        if (
-          window.App &&
-          typeof App.paintLogo === "function"
-        ) {
-          App.paintLogo();
-        }
-
-        this.renderSettings();
+  this.renderSettings();
+}
       } else if (this.tab === "abschluss") {
         const orders = await DB.listOrders({
           from: startOfDay(0).toISOString(),
@@ -1984,166 +1975,679 @@ const Admin = {
      Einstellungen
      ------------------------------------------------------------------------ */
 
+   /* ------------------------------------------------------------------------
+     Einstellungen und Personalisierung
+     ------------------------------------------------------------------------ */
+
   renderSettings() {
-    const settings = State.settings || {};
+    const defaults = window.DEFAULT_SETTINGS || {
+      business_name: "Masora Döner",
+      business_subtitle: "Kassensystem",
+      logo_url: null,
+      primary_color: "#e95420",
+      accent_color: "#e35d6a",
+      theme_mode: "dark",
+      accent_preset: "paprika",
+      compact_mode: false,
+      default_payment: "cash",
+      show_vat: true,
+      auto_print_receipt: false,
+      confirm_cart_clear: true,
+      session_timeout_minutes: 30,
+    };
 
-    const businessName =
-      String(settings.business_name || "").trim() ||
-      "Masora Döner";
+    const settings = {
+      ...defaults,
+      ...(State.settings || {}),
+    };
 
-    const logoUrl =
-      String(settings.logo_url || "").trim();
+    const validHex = (value, fallback) =>
+      /^#[0-9a-fA-F]{6}$/.test(String(value || ""))
+        ? String(value)
+        : fallback;
 
-    const primaryColor =
-      /^#[0-9a-fA-F]{6}$/.test(
-        settings.primary_color,
+    const validTheme = ["dark", "light", "system"].includes(
+      settings.theme_mode,
+    )
+      ? settings.theme_mode
+      : "dark";
+
+    const validPreset = [
+      "paprika",
+      "red",
+      "gold",
+      "green",
+      "blue",
+      "purple",
+    ].includes(settings.accent_preset)
+      ? settings.accent_preset
+      : "paprika";
+
+    const validPayment =
+      settings.default_payment === "card"
+        ? "card"
+        : "cash";
+
+    const validSession = [15, 30, 60, 120].includes(
+      Number(settings.session_timeout_minutes),
+    )
+      ? Number(settings.session_timeout_minutes)
+      : 30;
+
+    const presets = [
+      {
+        id: "paprika",
+        name: "Paprika",
+        color: "#e25a24",
+      },
+      {
+        id: "red",
+        name: "Rot",
+        color: "#d94c58",
+      },
+      {
+        id: "gold",
+        name: "Gold",
+        color: "#d89b28",
+      },
+      {
+        id: "green",
+        name: "Grün",
+        color: "#55a86a",
+      },
+      {
+        id: "blue",
+        name: "Blau",
+        color: "#4e8edc",
+      },
+      {
+        id: "purple",
+        name: "Lila",
+        color: "#8a6bd1",
+      },
+    ];
+
+    const presetHTML = presets
+      .map(
+        (preset) => `
+          <button
+            class="accent-option ${
+              preset.id === validPreset ? "is-selected" : ""
+            }"
+            type="button"
+            data-accent-option="${preset.id}"
+            style="--option-color:${preset.color}"
+            aria-pressed="${
+              preset.id === validPreset
+            }"
+          >
+            <span class="accent-option-dot"></span>
+            <span>${esc(preset.name)}</span>
+          </button>
+        `,
       )
-        ? settings.primary_color
-        : "#e95420";
-
-    const accentColor =
-      /^#[0-9a-fA-F]{6}$/.test(
-        settings.accent_color,
-      )
-        ? settings.accent_color
-        : "#e35d6a";
+      .join("");
 
     $("#admin-body").innerHTML = `
-      <div class="card">
-        <div class="card-head">
-          <span class="card-title">Allgemein</span>
-        </div>
-
-        <div class="card-body">
-          <div class="field">
-            <label for="set-name">
-              Name des Geschäfts
-            </label>
-
-            <input
-              id="set-name"
-              type="text"
-              value="${esc(businessName)}"
-              placeholder="Masora Döner"
-              autocomplete="organization"
-            />
+      <div class="settings-layout">
+        <section class="card settings-card">
+          <div class="card-head">
+            <div>
+              <span class="card-title">Branding</span>
+              <p class="settings-description">
+                Name und Erscheinungsbild des Geschäfts.
+              </p>
+            </div>
           </div>
 
-          <div class="field">
-            <label for="set-logo">
-              Logo-URL
-            </label>
+          <div class="settings-form">
+            <div class="field">
+              <label for="set-name">
+                Geschäftsname
+              </label>
 
-            <input
-              id="set-logo"
-              type="url"
-              value="${esc(logoUrl)}"
-              placeholder="https://example.com/logo.png"
-            />
+              <input
+                class="input"
+                id="set-name"
+                type="text"
+                value="${esc(
+                  String(
+                    settings.business_name || "",
+                  ).trim() || "Masora Döner",
+                )}"
+                placeholder="Masora Döner"
+                autocomplete="organization"
+              />
+            </div>
+
+            <div class="field">
+              <label for="set-subtitle">
+                Untertitel
+              </label>
+
+              <input
+                class="input"
+                id="set-subtitle"
+                type="text"
+                value="${esc(
+                  String(
+                    settings.business_subtitle || "",
+                  ).trim() || "Kassensystem",
+                )}"
+                placeholder="Kassensystem"
+              />
+            </div>
+
+            <div class="field">
+              <label for="set-logo">
+                Logo-URL
+              </label>
+
+              <input
+                class="input"
+                id="set-logo"
+                type="url"
+                value="${esc(
+                  String(settings.logo_url || "").trim(),
+                )}"
+                placeholder="https://example.com/logo.png"
+              />
+            </div>
+          </div>
+        </section>
+
+        <section class="card settings-card">
+          <div class="card-head">
+            <div>
+              <span class="card-title">Erscheinung</span>
+              <p class="settings-description">
+                Theme und Akzentfarben der Anwendung.
+              </p>
+            </div>
           </div>
 
-          <div class="field">
-            <label for="set-primary-color">
-              Hauptfarbe
-            </label>
+          <div class="settings-form">
+            <div class="field">
+              <label for="set-theme">
+                Theme
+              </label>
 
-            <input
-              id="set-primary-color"
-              type="color"
-              value="${primaryColor}"
-            />
+              <select class="select" id="set-theme">
+                <option
+                  value="dark"
+                  ${
+                    validTheme === "dark"
+                      ? "selected"
+                      : ""
+                  }
+                >
+                  Dunkel
+                </option>
+
+                <option
+                  value="light"
+                  ${
+                    validTheme === "light"
+                      ? "selected"
+                      : ""
+                  }
+                >
+                  Hell
+                </option>
+
+                <option
+                  value="system"
+                  ${
+                    validTheme === "system"
+                      ? "selected"
+                      : ""
+                  }
+                >
+                  System
+                </option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label>Akzentfarbe</label>
+
+              <div class="accent-options">
+                ${presetHTML}
+              </div>
+            </div>
+
+            <div class="settings-color-grid">
+              <div class="field">
+                <label for="set-primary-color">
+                  Primärfarbe
+                </label>
+
+                <input
+                  id="set-primary-color"
+                  type="color"
+                  value="${validHex(
+                    settings.primary_color,
+                    "#e95420",
+                  )}"
+                />
+              </div>
+
+              <div class="field">
+                <label for="set-accent-color">
+                  Zusatzfarbe
+                </label>
+
+                <input
+                  id="set-accent-color"
+                  type="color"
+                  value="${validHex(
+                    settings.accent_color,
+                    "#e35d6a",
+                  )}"
+                />
+              </div>
+            </div>
+
+            <label class="setting-toggle">
+              <input
+                id="set-compact"
+                type="checkbox"
+                ${
+                  settings.compact_mode
+                    ? "checked"
+                    : ""
+                }
+              />
+
+              <span class="setting-toggle-content">
+                <span class="setting-toggle-title">
+                  Kompakte Kassenansicht
+                </span>
+
+                <span class="setting-toggle-text">
+                  Kleinere Produktkarten und Abstände verwenden.
+                </span>
+              </span>
+
+              <span class="toggle-ui"></span>
+            </label>
+          </div>
+        </section>
+
+        <section class="card settings-card">
+          <div class="card-head">
+            <div>
+              <span class="card-title">Kassenverhalten</span>
+              <p class="settings-description">
+                Lege den Ablauf beim Kassieren fest.
+              </p>
+            </div>
           </div>
 
-          <div class="field">
-            <label for="set-accent-color">
-              Akzentfarbe
+          <div class="settings-form">
+            <div class="field">
+              <label for="set-payment">
+                Standardzahlungsart
+              </label>
+
+              <select class="select" id="set-payment">
+                <option
+                  value="cash"
+                  ${
+                    validPayment === "cash"
+                      ? "selected"
+                      : ""
+                  }
+                >
+                  Bar
+                </option>
+
+                <option
+                  value="card"
+                  ${
+                    validPayment === "card"
+                      ? "selected"
+                      : ""
+                  }
+                >
+                  Karte
+                </option>
+              </select>
+            </div>
+
+            <label class="setting-toggle">
+              <input
+                id="set-vat"
+                type="checkbox"
+                ${
+                  settings.show_vat !== false
+                    ? "checked"
+                    : ""
+                }
+              />
+
+              <span class="setting-toggle-content">
+                <span class="setting-toggle-title">
+                  MwSt. anzeigen
+                </span>
+
+                <span class="setting-toggle-text">
+                  Die enthaltene Mehrwertsteuer im Warenkorb anzeigen.
+                </span>
+              </span>
+
+              <span class="toggle-ui"></span>
             </label>
 
-            <input
-              id="set-accent-color"
-              type="color"
-              value="${accentColor}"
-            />
-          </div>
-        </div>
+            <label class="setting-toggle">
+              <input
+                id="set-print"
+                type="checkbox"
+                ${
+                  settings.auto_print_receipt
+                    ? "checked"
+                    : ""
+                }
+              />
 
-        <div class="card-foot">
-          <button
-            class="btn btn-primary"
-            id="set-save"
-            type="button"
-          >
-            Speichern
-          </button>
-        </div>
+              <span class="setting-toggle-content">
+                <span class="setting-toggle-title">
+                  Bon automatisch drucken
+                </span>
+
+                <span class="setting-toggle-text">
+                  Nach dem Bezahlen automatisch den Druckdialog öffnen.
+                </span>
+              </span>
+
+              <span class="toggle-ui"></span>
+            </label>
+
+            <label class="setting-toggle">
+              <input
+                id="set-confirm-clear"
+                type="checkbox"
+                ${
+                  settings.confirm_cart_clear !== false
+                    ? "checked"
+                    : ""
+                }
+              />
+
+              <span class="setting-toggle-content">
+                <span class="setting-toggle-title">
+                  Leeren des Warenkorbs bestätigen
+                </span>
+
+                <span class="setting-toggle-text">
+                  Verhindert versehentliches Löschen einer Bestellung.
+                </span>
+              </span>
+
+              <span class="toggle-ui"></span>
+            </label>
+          </div>
+        </section>
+
+        <section class="card settings-card">
+          <div class="card-head">
+            <div>
+              <span class="card-title">Sicherheit</span>
+              <p class="settings-description">
+                Einstellungen für automatische Sitzungen.
+              </p>
+            </div>
+          </div>
+
+          <div class="settings-form">
+            <div class="field">
+              <label for="set-session">
+                Automatische Abmeldung
+              </label>
+
+              <select class="select" id="set-session">
+                <option
+                  value="15"
+                  ${
+                    validSession === 15
+                      ? "selected"
+                      : ""
+                  }
+                >
+                  Nach 15 Minuten
+                </option>
+
+                <option
+                  value="30"
+                  ${
+                    validSession === 30
+                      ? "selected"
+                      : ""
+                  }
+                >
+                  Nach 30 Minuten
+                </option>
+
+                <option
+                  value="60"
+                  ${
+                    validSession === 60
+                      ? "selected"
+                      : ""
+                  }
+                >
+                  Nach 60 Minuten
+                </option>
+
+                <option
+                  value="120"
+                  ${
+                    validSession === 120
+                      ? "selected"
+                      : ""
+                  }
+                >
+                  Nach 120 Minuten
+                </option>
+              </select>
+            </div>
+
+            <div class="settings-info">
+              <span class="settings-info-icon">i</span>
+
+              <span>
+                Die Sitzung wird nach der gewählten Zeit beendet.
+                Eine aktive Schicht wird dabei automatisch beendet.
+              </span>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="settings-actions">
+        <span
+          class="muted"
+          id="settings-status"
+        ></span>
+
+        <button
+          class="btn btn-primary"
+          id="set-save"
+          type="button"
+        >
+          Änderungen speichern
+        </button>
       </div>
     `;
+
+    let selectedAccent = validPreset;
+
+    const paintAccentSelection = () => {
+      $$("#admin-body [data-accent-option]").forEach(
+        (button) => {
+          const selected =
+            button.dataset.accentOption ===
+            selectedAccent;
+
+          button.classList.toggle(
+            "is-selected",
+            selected,
+          );
+
+          button.setAttribute(
+            "aria-pressed",
+            String(selected),
+          );
+        },
+      );
+    };
+
+    $$("#admin-body [data-accent-option]").forEach(
+      (button) => {
+        button.addEventListener("click", () => {
+          selectedAccent =
+            button.dataset.accentOption;
+
+          const preset =
+            window.ACCENT_PRESETS?.[selectedAccent];
+
+          if (preset) {
+            const primaryColor =
+              $("#set-primary-color");
+
+            const accentColor =
+              $("#set-accent-color");
+
+            if (primaryColor) {
+              primaryColor.value = preset.primary;
+            }
+
+            if (accentColor) {
+              accentColor.value = preset.accent;
+            }
+          }
+
+          paintAccentSelection();
+        });
+      },
+    );
 
     $("#set-save")?.addEventListener(
       "click",
       async () => {
-        const business_name =
-          $("#set-name")?.value.trim() || "";
+        const saveButton = $("#set-save");
+        const status = $("#settings-status");
 
-        const logo_url =
+        const businessName =
+          $("#set-name")?.value.trim() ||
+          "Masora Döner";
+
+        const businessSubtitle =
+          $("#set-subtitle")?.value.trim() ||
+          "Kassensystem";
+
+        const logoUrl =
           $("#set-logo")?.value.trim() || null;
 
-        const primary_color =
+        const themeMode =
+          $("#set-theme")?.value || "dark";
+
+        const primaryColor =
           $("#set-primary-color")?.value ||
           "#e95420";
 
-        const accent_color =
+        const accentColor =
           $("#set-accent-color")?.value ||
           "#e35d6a";
 
-        if (!business_name) {
-          toast(
-            "Bitte einen Geschäftsnamen eingeben",
-            "error",
-          );
-          return;
-        }
+        const compactMode =
+          Boolean($("#set-compact")?.checked);
+
+        const defaultPayment =
+          $("#set-payment")?.value === "card"
+            ? "card"
+            : "cash";
+
+        const showVat =
+          Boolean($("#set-vat")?.checked);
+
+        const autoPrintReceipt =
+          Boolean($("#set-print")?.checked);
+
+        const confirmCartClear =
+          Boolean($("#set-confirm-clear")?.checked);
+
+        const sessionTimeout =
+          Number($("#set-session")?.value) || 30;
 
         try {
+          if (saveButton) {
+            saveButton.disabled = true;
+            saveButton.textContent = "Speichert …";
+          }
+
           const saved =
             await DB.updateSettings({
-              business_name,
-              logo_url,
-              primary_color,
-              accent_color,
+              business_name: businessName,
+              business_subtitle: businessSubtitle,
+              logo_url: logoUrl,
+              theme_mode: themeMode,
+              accent_preset: selectedAccent,
+              primary_color: primaryColor,
+              accent_color: accentColor,
+              compact_mode: compactMode,
+              default_payment: defaultPayment,
+              show_vat: showVat,
+              auto_print_receipt: autoPrintReceipt,
+              confirm_cart_clear: confirmCartClear,
+              session_timeout_minutes: sessionTimeout,
             });
 
-          State.settings = saved;
+          State.settings = {
+            ...(window.DEFAULT_SETTINGS || {}),
+            ...saved,
+          };
 
           if (
             window.App &&
-            typeof App.paintBrand === "function"
+            typeof App.applySettings === "function"
           ) {
-            App.paintBrand();
+            App.applySettings();
+          } else {
+            App.paintBrand?.();
+            App.paintTheme?.();
+            App.paintLogo?.();
           }
 
-          if (
-            window.App &&
-            typeof App.paintTheme === "function"
-          ) {
-            App.paintTheme();
+          if (Duty?.isOn?.()) {
+            Duty.startSession();
           }
 
-          if (
-            window.App &&
-            typeof App.paintLogo === "function"
-          ) {
-            App.paintLogo();
+          if (status) {
+            status.textContent =
+              "Änderungen gespeichert";
           }
 
-          toast("Einstellungen gespeichert");
+          toast("Personalisierung gespeichert");
         } catch (error) {
           fail(error);
+
+          if (status) {
+            status.textContent =
+              "Speichern fehlgeschlagen";
+          }
+        } finally {
+          if (saveButton) {
+            saveButton.disabled = false;
+            saveButton.textContent =
+              "Änderungen speichern";
+          }
         }
       },
     );
-  },
 
+    paintAccentSelection();
+  },
   /* ------------------------------------------------------------------------
      Tagesabschluss
      ------------------------------------------------------------------------ */
