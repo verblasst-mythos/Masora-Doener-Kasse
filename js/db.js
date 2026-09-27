@@ -19,82 +19,263 @@ const sb = window.supabase.createClient(
   },
 );
 
-/** Wirft bei Fehler, gibt sonst die Daten zurück. */
 function unwrap({ data, error }) {
-  if (error) throw new Error(error.message || "Datenbankfehler");
+  if (error) {
+    throw new Error(error.message || "Datenbankfehler");
+  }
+
   return data;
+}
+
+const SETTINGS_COLUMNS = `
+  id,
+  business_name,
+  business_subtitle,
+  logo_url,
+  primary_color,
+  accent_color,
+  theme_mode,
+  accent_preset,
+  compact_mode,
+  default_payment,
+  show_vat,
+  auto_print_receipt,
+  confirm_cart_clear,
+  session_timeout_minutes,
+  updated_at
+`;
+
+const DEFAULT_SETTINGS = {
+  id: 1,
+  business_name: "Masora Döner",
+  business_subtitle: "Kassensystem",
+  logo_url: null,
+
+  primary_color: "#e95420",
+  accent_color: "#e35d6a",
+
+  theme_mode: "dark",
+  accent_preset: "paprika",
+  compact_mode: false,
+
+  default_payment: "cash",
+  show_vat: true,
+  auto_print_receipt: false,
+  confirm_cart_clear: true,
+  session_timeout_minutes: 30,
+};
+
+function isHexColor(value) {
+  return /^#[0-9a-fA-F]{6}$/.test(String(value || "").trim());
+}
+
+function booleanValue(value, fallback) {
+  return typeof value === "boolean" ? value : fallback;
+}
+
+function oneOf(value, validValues, fallback) {
+  return validValues.includes(value) ? value : fallback;
+}
+
+function numberOneOf(value, validValues, fallback) {
+  const number = Number(value);
+  return validValues.includes(number) ? number : fallback;
+}
+
+function sanitizeSettings(patch = {}) {
+  return {
+    id: 1,
+
+    business_name:
+      String(
+        patch.business_name ?? DEFAULT_SETTINGS.business_name,
+      ).trim() || DEFAULT_SETTINGS.business_name,
+
+    business_subtitle:
+      String(
+        patch.business_subtitle ?? DEFAULT_SETTINGS.business_subtitle,
+      ).trim() || DEFAULT_SETTINGS.business_subtitle,
+
+    logo_url: String(patch.logo_url ?? "").trim() || null,
+
+    primary_color: isHexColor(patch.primary_color)
+      ? String(patch.primary_color).trim()
+      : DEFAULT_SETTINGS.primary_color,
+
+    accent_color: isHexColor(patch.accent_color)
+      ? String(patch.accent_color).trim()
+      : DEFAULT_SETTINGS.accent_color,
+
+    theme_mode: oneOf(
+      patch.theme_mode,
+      ["dark", "light", "system"],
+      DEFAULT_SETTINGS.theme_mode,
+    ),
+
+    accent_preset: oneOf(
+      patch.accent_preset,
+      ["paprika", "red", "gold", "green", "blue", "purple"],
+      DEFAULT_SETTINGS.accent_preset,
+    ),
+
+    compact_mode: booleanValue(
+      patch.compact_mode,
+      DEFAULT_SETTINGS.compact_mode,
+    ),
+
+    default_payment: oneOf(
+      patch.default_payment,
+      ["cash", "card"],
+      DEFAULT_SETTINGS.default_payment,
+    ),
+
+    show_vat: booleanValue(
+      patch.show_vat,
+      DEFAULT_SETTINGS.show_vat,
+    ),
+
+    auto_print_receipt: booleanValue(
+      patch.auto_print_receipt,
+      DEFAULT_SETTINGS.auto_print_receipt,
+    ),
+
+    confirm_cart_clear: booleanValue(
+      patch.confirm_cart_clear,
+      DEFAULT_SETTINGS.confirm_cart_clear,
+    ),
+
+    session_timeout_minutes: numberOneOf(
+      patch.session_timeout_minutes,
+      [15, 30, 60, 120],
+      DEFAULT_SETTINGS.session_timeout_minutes,
+    ),
+  };
 }
 
 const DB = {
   /* ---------- Produkte ---------- */
+
   async listProducts(onlyActive = false) {
-    let q = sb
+    let query = sb
       .from("products")
       .select("*")
       .order("category_order")
       .order("category")
       .order("sort_order")
       .order("name");
-    if (onlyActive) q = q.eq("is_active", true);
-    return unwrap(await q);
+
+    if (onlyActive) {
+      query = query.eq("is_active", true);
+    }
+
+    return unwrap(await query);
   },
-  async createProduct(p) {
-    return unwrap(await sb.from("products").insert(p).select().single());
-  },
-  async updateProduct(id, patch) {
+
+  async createProduct(product) {
     return unwrap(
-      await sb.from("products").update(patch).eq("id", id).select().single(),
+      await sb.from("products").insert(product).select().single(),
     );
   },
+
+  async updateProduct(id, patch) {
+    return unwrap(
+      await sb
+        .from("products")
+        .update(patch)
+        .eq("id", id)
+        .select()
+        .single(),
+    );
+  },
+
   async deleteProduct(id) {
     return unwrap(await sb.from("products").delete().eq("id", id));
   },
 
   /* ---------- Rabatte ---------- */
+
   async listDiscounts(onlyActive = false) {
-    let q = sb.from("discounts").select("*").order("name");
-    if (onlyActive) q = q.eq("is_active", true);
-    return unwrap(await q);
+    let query = sb.from("discounts").select("*").order("name");
+
+    if (onlyActive) {
+      query = query.eq("is_active", true);
+    }
+
+    return unwrap(await query);
   },
-  async createDiscount(d) {
-    return unwrap(await sb.from("discounts").insert(d).select().single());
-  },
-  async updateDiscount(id, patch) {
+
+  async createDiscount(discount) {
     return unwrap(
-      await sb.from("discounts").update(patch).eq("id", id).select().single(),
+      await sb.from("discounts").insert(discount).select().single(),
     );
   },
+
+  async updateDiscount(id, patch) {
+    return unwrap(
+      await sb
+        .from("discounts")
+        .update(patch)
+        .eq("id", id)
+        .select()
+        .single(),
+    );
+  },
+
   async deleteDiscount(id) {
     return unwrap(await sb.from("discounts").delete().eq("id", id));
   },
 
   /* ---------- Personal ---------- */
+
   async listStaff(onlyActive = false) {
-    let q = sb.from("staff").select("*").order("name");
-    if (onlyActive) q = q.eq("is_active", true);
-    return unwrap(await q);
+    let query = sb.from("staff").select("*").order("name");
+
+    if (onlyActive) {
+      query = query.eq("is_active", true);
+    }
+
+    return unwrap(await query);
   },
-  async createStaff(s) {
-    return unwrap(await sb.from("staff").insert(s).select().single());
-  },
-  async updateStaff(id, patch) {
+
+  async createStaff(staff) {
     return unwrap(
-      await sb.from("staff").update(patch).eq("id", id).select().single(),
+      await sb.from("staff").insert(staff).select().single(),
     );
   },
+
+  async updateStaff(id, patch) {
+    return unwrap(
+      await sb
+        .from("staff")
+        .update(patch)
+        .eq("id", id)
+        .select()
+        .single(),
+    );
+  },
+
   async deleteStaff(id) {
     return unwrap(await sb.from("staff").delete().eq("id", id));
   },
 
-  /* ---------- Kooperationen (Rabatt mit Codewort) ---------- */
+  /* ---------- Kooperationen ---------- */
+
   async listCoops(onlyActive = false) {
-    let q = sb.from("cooperations").select("*").order("name");
-    if (onlyActive) q = q.eq("is_active", true);
-    return unwrap(await q);
+    let query = sb.from("cooperations").select("*").order("name");
+
+    if (onlyActive) {
+      query = query.eq("is_active", true);
+    }
+
+    return unwrap(await query);
   },
-  async createCoop(c) {
-    return unwrap(await sb.from("cooperations").insert(c).select().single());
+
+  async createCoop(cooperation) {
+    return unwrap(
+      await sb.from("cooperations").insert(cooperation).select().single(),
+    );
   },
+
   async updateCoop(id, patch) {
     return unwrap(
       await sb
@@ -105,97 +286,117 @@ const DB = {
         .single(),
     );
   },
+
   async deleteCoop(id) {
-    return unwrap(await sb.from("cooperations").delete().eq("id", id));
+    return unwrap(
+      await sb.from("cooperations").delete().eq("id", id),
+    );
   },
-  /** Sucht eine aktive Kooperation zum eingegebenen Codewort. */
+
   async findCoopByCode(code) {
-    const clean = String(code || "").trim();
-    if (!clean) return null;
+    const cleanCode = String(code || "").trim();
+
+    if (!cleanCode) {
+      return null;
+    }
+
     const rows = unwrap(
       await sb
         .from("cooperations")
         .select("*")
         .eq("is_active", true)
-        .ilike("code", clean),
+        .ilike("code", cleanCode),
     );
-    return rows && rows.length ? rows[0] : null;
+
+    return rows?.[0] || null;
   },
 
   /* ---------- Bestellungen ---------- */
-  /** Legt die Bestellung an und bucht in derselben Transaktion das Lager ab. */
-  /** Ist die Datenbank-Erweiterung (Schichten, Lager, Kooperationen) schon eingespielt? */
-  isMissingFunction(err) {
-    const m = String(err?.message || err || "");
+
+  isMissingFunction(error) {
+    const message = String(error?.message || error || "");
+
     return (
-      err?.code === "PGRST202" ||
-      m.includes("does not exist") ||
-      m.includes("Could not find the function")
+      error?.code === "PGRST202" ||
+      message.includes("does not exist") ||
+      message.includes("Could not find the function")
     );
   },
 
-  async placeOrder(o) {
-    const res = await sb.rpc("place_order", {
-      p_items: o.items,
-      p_subtotal: o.subtotal,
-      p_discount_name: o.discount_name,
-      p_discount_amount: o.discount_amount,
-      p_discount_source: o.discount_source || "rabatt",
-      p_total: o.total,
-      p_payment_method: o.payment_method,
-      p_cash_given: o.cash_given,
-      p_change_due: o.change_due,
-      p_staff_id: o.staff_id,
-      p_staff_name: o.staff_name,
-      p_shift_id: o.shift_id,
-      p_note: o.note || null,
+  async placeOrder(order) {
+    const response = await sb.rpc("place_order", {
+      p_items: order.items,
+      p_subtotal: order.subtotal,
+      p_discount_name: order.discount_name,
+      p_discount_amount: order.discount_amount,
+      p_discount_source: order.discount_source || "rabatt",
+      p_total: order.total,
+      p_payment_method: order.payment_method,
+      p_cash_given: order.cash_given,
+      p_change_due: order.change_due,
+      p_staff_id: order.staff_id,
+      p_staff_name: order.staff_name,
+      p_shift_id: order.shift_id,
+      p_note: order.note || null,
     });
 
-    // Notfall-Weg: Lauft die Kasse noch auf dem alten Datenbankstand,
-    // wird die Bestellung ohne Lagerabzug direkt gespeichert.
-    if (res.error && this.isMissingFunction(res.error)) {
+    if (response.error && this.isMissingFunction(response.error)) {
       console.warn(
-        "place_order fehlt — Bestellung wird ohne Lagerabzug gespeichert",
+        "Die Funktion place_order fehlt. Bestellung wird ohne Lagerabzug gespeichert.",
       );
+
       return unwrap(
         await sb
           .from("orders")
           .insert({
-            items: o.items,
-            subtotal: o.subtotal,
-            discount_name: o.discount_name,
-            discount_amount: o.discount_amount,
-            total: o.total,
-            payment_method: o.payment_method,
-            cash_given: o.cash_given,
-            change_due: o.change_due,
-            staff_name: o.staff_name,
-            note: o.note || null,
+            items: order.items,
+            subtotal: order.subtotal,
+            discount_name: order.discount_name,
+            discount_amount: order.discount_amount,
+            total: order.total,
+            payment_method: order.payment_method,
+            cash_given: order.cash_given,
+            change_due: order.change_due,
+            staff_name: order.staff_name,
+            note: order.note || null,
           })
           .select()
           .single(),
       );
     }
-    return unwrap(res);
+
+    return unwrap(response);
   },
+
   async listOrders({ from = null, to = null, limit = 500 } = {}) {
-    let q = sb
+    let query = sb
       .from("orders")
       .select("*")
       .order("created_at", { ascending: false })
       .limit(limit);
-    if (from) q = q.gte("created_at", from);
-    if (to) q = q.lt("created_at", to);
-    return unwrap(await q);
+
+    if (from) {
+      query = query.gte("created_at", from);
+    }
+
+    if (to) {
+      query = query.lt("created_at", to);
+    }
+
+    return unwrap(await query);
   },
-  /** Storniert und bucht das Lager zurück. */
+
   async cancelOrder(id, staffName = null) {
     return unwrap(
-      await sb.rpc("cancel_order", { p_order_id: id, p_staff_name: staffName }),
+      await sb.rpc("cancel_order", {
+        p_order_id: id,
+        p_staff_name: staffName,
+      }),
     );
   },
 
-  /* ---------- Schichten (Ein- und Ausstempeln) ---------- */
+  /* ---------- Schichten ---------- */
+
   async clockIn(staffId, staffName) {
     return unwrap(
       await sb.rpc("clock_in", {
@@ -204,14 +405,24 @@ const DB = {
       }),
     );
   },
+
   async clockOut(shiftId, auto = false) {
     return unwrap(
-      await sb.rpc("clock_out", { p_shift_id: shiftId, p_auto: auto }),
+      await sb.rpc("clock_out", {
+        p_shift_id: shiftId,
+        p_auto: auto,
+      }),
     );
   },
+
   async resumeShift(staffId) {
-    return unwrap(await sb.rpc("resume_shift", { p_staff_id: staffId }));
+    return unwrap(
+      await sb.rpc("resume_shift", {
+        p_staff_id: staffId,
+      }),
+    );
   },
+
   async openShift(staffId) {
     const rows = unwrap(
       await sb
@@ -222,26 +433,39 @@ const DB = {
         .order("started_at", { ascending: false })
         .limit(1),
     );
-    return rows && rows.length ? rows[0] : null;
+
+    return rows?.[0] || null;
   },
+
   async listShifts({
     from = null,
     to = null,
     staffId = null,
     limit = 500,
   } = {}) {
-    let q = sb
+    let query = sb
       .from("shifts")
       .select("*")
       .order("started_at", { ascending: false })
       .limit(limit);
-    if (from) q = q.gte("started_at", from);
-    if (to) q = q.lt("started_at", to);
-    if (staffId) q = q.eq("staff_id", staffId);
-    return unwrap(await q);
+
+    if (from) {
+      query = query.gte("started_at", from);
+    }
+
+    if (to) {
+      query = query.lt("started_at", to);
+    }
+
+    if (staffId) {
+      query = query.eq("staff_id", staffId);
+    }
+
+    return unwrap(await query);
   },
 
   /* ---------- Lager ---------- */
+
   async adjustStock(productId, delta, reason, staffName) {
     return unwrap(
       await sb.rpc("adjust_stock", {
@@ -252,14 +476,19 @@ const DB = {
       }),
     );
   },
+
   async listStockMoves({ limit = 120, productId = null } = {}) {
-    let q = sb
+    let query = sb
       .from("stock_moves")
       .select("*")
       .order("created_at", { ascending: false })
       .limit(limit);
-    if (productId) q = q.eq("product_id", productId);
-    return unwrap(await q);
+
+    if (productId) {
+      query = query.eq("product_id", productId);
+    }
+
+    return unwrap(await query);
   },
 
   /* ---------- Einstellungen ---------- */
@@ -268,79 +497,60 @@ const DB = {
     const rows = unwrap(
       await sb
         .from("settings")
-        .select(
-          "id, business_name, logo_url, primary_color, accent_color, updated_at",
-        )
+        .select(SETTINGS_COLUMNS)
         .eq("id", 1),
     );
 
-    if (rows && rows.length) {
-      return rows[0];
+    if (rows?.length) {
+      return {
+        ...DEFAULT_SETTINGS,
+        ...rows[0],
+      };
     }
 
-    return unwrap(
+    const inserted = unwrap(
       await sb
         .from("settings")
-        .insert({
-          id: 1,
-          business_name: "Masora Döner",
-          logo_url: null,
-          primary_color: "#e95420",
-          accent_color: "#e35d6a",
-        })
-        .select(
-          "id, business_name, logo_url, primary_color, accent_color, updated_at",
-        )
+        .insert(DEFAULT_SETTINGS)
+        .select(SETTINGS_COLUMNS)
         .single(),
     );
+
+    return {
+      ...DEFAULT_SETTINGS,
+      ...inserted,
+    };
   },
 
-  async updateSettings(patch) {
-    const business_name = String(
-      patch?.business_name || "Masora Döner",
-    ).trim();
+  async updateSettings(patch = {}) {
+    const safeSettings = sanitizeSettings(patch);
 
-    const logo_url =
-      String(patch?.logo_url || "").trim() || null;
-
-    const primary_color = /^#[0-9a-fA-F]{6}$/.test(
-      patch?.primary_color,
-    )
-      ? patch.primary_color
-      : "#e95420";
-
-    const accent_color = /^#[0-9a-fA-F]{6}$/.test(
-      patch?.accent_color,
-    )
-      ? patch.accent_color
-      : "#e35d6a";
-
-    return unwrap(
+    const updated = unwrap(
       await sb
         .from("settings")
         .upsert(
           {
-            id: 1,
-            business_name,
-            logo_url,
-            primary_color,
-            accent_color,
+            ...safeSettings,
             updated_at: new Date().toISOString(),
           },
           {
             onConflict: "id",
           },
         )
-        .select(
-          "id, business_name, logo_url, primary_color, accent_color, updated_at",
-        )
+        .select(SETTINGS_COLUMNS)
         .single(),
     );
+
+    return {
+      ...DEFAULT_SETTINGS,
+      ...updated,
+    };
   },
 
-  async saveSettings(patch) {
+  async saveSettings(patch = {}) {
     return this.updateSettings(patch);
   },
 };
 
 window.DB = DB;
+window.DEFAULT_SETTINGS = DEFAULT_SETTINGS;
