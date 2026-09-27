@@ -265,11 +265,7 @@ function openModal({
         ${bodyHTML}
       </div>
 
-      ${
-        footHTML
-          ? `<div class="modal-foot">${footHTML}</div>`
-          : ""
-      }
+      ${footHTML ? `<div class="modal-foot">${footHTML}</div>` : ""}
     </div>
   `;
 
@@ -307,11 +303,7 @@ function closeModal() {
   }
 
   if (modalKeyHandler) {
-    document.removeEventListener(
-      "keydown",
-      modalKeyHandler,
-    );
-
+    document.removeEventListener("keydown", modalKeyHandler);
     modalKeyHandler = null;
   }
 }
@@ -358,18 +350,14 @@ function confirmDialog(
         </button>
       `,
       onMount(root) {
-        $("[data-yes]", root)?.addEventListener(
-          "click",
-          () => {
-            closeModal();
-            finish(true);
-          },
-        );
+        $("[data-yes]", root)?.addEventListener("click", () => {
+          closeModal();
+          finish(true);
+        });
 
-        $("[data-close]", root)?.addEventListener(
-          "click",
-          () => finish(false),
-        );
+        $("[data-close]", root)?.addEventListener("click", () => {
+          finish(false);
+        });
       },
     });
   });
@@ -402,14 +390,12 @@ const Login = {
   },
 
   paint() {
-    $$("#pin-display .pin-dot").forEach(
-      (dot, index) => {
-        dot.classList.toggle(
-          "filled",
-          index < this.pin.length,
-        );
-      },
-    );
+    $$("#pin-display .pin-dot").forEach((dot, index) => {
+      dot.classList.toggle(
+        "filled",
+        index < this.pin.length,
+      );
+    });
   },
 
   press(key) {
@@ -448,8 +434,7 @@ const Login = {
 
     if (!match) {
       if (errorElement) {
-        errorElement.textContent =
-          "PIN nicht erkannt";
+        errorElement.textContent = "PIN nicht erkannt";
       }
 
       this.pin = "";
@@ -464,18 +449,15 @@ const Login = {
   },
 
   bind() {
-    $("#pin-pad")?.addEventListener(
-      "click",
-      (event) => {
-        const button = event.target.closest(
-          "button[data-key]",
-        );
+    $("#pin-pad")?.addEventListener("click", (event) => {
+      const button = event.target.closest(
+        "button[data-key]",
+      );
 
-        if (button) {
-          this.press(button.dataset.key);
-        }
-      },
-    );
+      if (button) {
+        this.press(button.dataset.key);
+      }
+    });
 
     document.addEventListener("keydown", (event) => {
       if ($("#login")?.classList.contains("hidden")) {
@@ -517,14 +499,9 @@ const Duty = {
     }
 
     try {
-      const openShift = await DB.openShift(
-        State.user.id,
-      );
+      const openShift = await DB.openShift(State.user.id);
 
-      if (
-        openShift &&
-        openShift.ended_at === null
-      ) {
+      if (openShift && openShift.ended_at === null) {
         State.shift = null;
       }
     } catch (error) {
@@ -633,8 +610,7 @@ const Duty = {
       button.textContent = "Ausstempeln";
       button.classList.remove("btn-primary");
     } else {
-      $("#duty-state").textContent =
-        "Nicht im Dienst";
+      $("#duty-state").textContent = "Nicht im Dienst";
 
       $("#duty-since").textContent =
         "Zum Kassieren bitte einstempeln";
@@ -689,10 +665,7 @@ const Duty = {
       this.paint();
     }
 
-    if (
-      remaining <= 300 &&
-      !this.warned
-    ) {
+    if (remaining <= 300 && !this.warned) {
       this.warned = true;
 
       toast(
@@ -742,11 +715,7 @@ const Duty = {
         </p>
       `,
       footHTML: `
-        <button
-          class="btn"
-          type="button"
-          data-close
-        >
+        <button class="btn" type="button" data-close>
           Abbrechen
         </button>
 
@@ -777,12 +746,11 @@ const Duty = {
       "click",
       async () => {
         if (this.isOn()) {
-          const confirmed =
-            await confirmDialog(
-              "Dienst beenden?",
-              "Du wirst ausgestempelt. Zum Kassieren musst du dich danach wieder einstempeln.",
-              "Ausstempeln",
-            );
+          const confirmed = await confirmDialog(
+            "Dienst beenden?",
+            "Du wirst ausgestempelt. Zum Kassieren musst du dich danach wieder einstempeln.",
+            "Ausstempeln",
+          );
 
           if (confirmed) {
             await this.clockOut(false);
@@ -1016,3 +984,384 @@ const App = {
                 />
               </svg>
             `
+            : `
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+              >
+                <path
+                  d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"
+                />
+              </svg>
+            `;
+      },
+    );
+  },
+
+  paintLogo() {
+    const settings = getSettings();
+
+    const name =
+      String(settings.business_name || "").trim() ||
+      APP_DEFAULT_SETTINGS.business_name;
+
+    const logoUrl =
+      String(settings.logo_url || "").trim();
+
+    $$(".business-logo").forEach((container) => {
+      if (!logoUrl) {
+        container.innerHTML = `
+          <span class="default-logo" aria-hidden="true">
+            🍢
+          </span>
+        `;
+
+        container.classList.remove("has-image");
+        return;
+      }
+
+      container.innerHTML = `
+        <img
+          src="${esc(logoUrl)}"
+          alt="${esc(name)} Logo"
+          loading="eager"
+          onerror="this.parentElement.innerHTML='<span class=&quot;default-logo&quot; aria-hidden=&quot;true&quot;>🍢</span>';"
+        />
+      `;
+
+      container.classList.add("has-image");
+    });
+  },
+
+  paintCompactMode() {
+    document.body.classList.toggle(
+      "compact-mode",
+      Boolean(getSettings().compact_mode),
+    );
+  },
+
+  paintVatVisibility() {
+    $("#sum-vat")
+      ?.closest(".sum-row")
+      ?.classList.toggle(
+        "hidden",
+        !Boolean(getSettings().show_vat),
+      );
+  },
+
+  paintDefaultPayment() {
+    const settings = getSettings();
+    const cashButton = $("#pay-cash");
+    const cardButton = $("#pay-card");
+
+    if (!cashButton || !cardButton) {
+      return;
+    }
+
+    const payment =
+      settings.default_payment === "card"
+        ? "card"
+        : "cash";
+
+    cashButton.classList.toggle(
+      "btn-primary",
+      payment === "cash",
+    );
+
+    cardButton.classList.toggle(
+      "btn-primary",
+      payment === "card",
+    );
+  },
+
+  async afterLogin() {
+    const userName = $("#user-name");
+    const userRole = $("#user-role");
+
+    if (userName) {
+      userName.textContent = State.user.name;
+    }
+
+    const roleNames = {
+      admin: "Admin",
+      service: "Serviceleitung",
+      lager: "Lager",
+      kasse: "Kasse",
+    };
+
+    if (userRole) {
+      userRole.textContent =
+        roleNames[State.user.role] || "Kasse";
+    }
+
+    State.userRole = State.user.role;
+
+    const adminNavigation = $("#nav-admin");
+
+    if (adminNavigation) {
+      adminNavigation.classList.toggle(
+        "hidden",
+        !["admin", "service", "lager"].includes(
+          State.user.role,
+        ),
+      );
+    }
+
+    try {
+      const [products, discounts] =
+        await Promise.all([
+          DB.listProducts(true),
+          DB.listDiscounts(true),
+        ]);
+
+      State.products = products;
+      State.discounts = discounts;
+
+      await Duty.load();
+      Duty.startSession();
+
+      Kasse.render();
+      this.go("kasse");
+    } catch (error) {
+      fail(error);
+    }
+  },
+
+  async logout({ auto = false } = {}) {
+    if (!auto && Duty.isOn()) {
+      const confirmed = await confirmDialog(
+        "Abmelden und ausstempeln?",
+        "Du bist noch im Dienst. Beim Abmelden wirst du ausgestempelt.",
+        "Abmelden",
+      );
+
+      if (!confirmed) {
+        return;
+      }
+
+      await Duty.clockOut(false);
+    }
+
+    Duty.stopSession();
+
+    State.user = null;
+    State.shift = null;
+    State.cart = [];
+    State.discountId = "";
+    State.coop = null;
+    State.userRole = null;
+
+    closeModal();
+    Login.show();
+  },
+
+  bindNav() {
+    $("#nav")?.addEventListener("click", (event) => {
+      const button = event.target.closest(
+        "button[data-view]",
+      );
+
+      if (button) {
+        this.go(button.dataset.view);
+      }
+    });
+
+    $("#logout")?.addEventListener(
+      "click",
+      () => this.logout(),
+    );
+
+    $("#duty-banner-btn")?.addEventListener(
+      "click",
+      () => Duty.clockIn(),
+    );
+  },
+
+  go(view) {
+    State.view = view;
+
+    $$("#nav button[data-view]").forEach((button) => {
+      button.setAttribute(
+        "aria-current",
+        String(button.dataset.view === view),
+      );
+    });
+
+    $$(".view").forEach((panel) => {
+      panel.classList.toggle(
+        "hidden",
+        panel.dataset.viewPanel !== view,
+      );
+    });
+
+    const pageTitles = {
+      kasse: "Kasse",
+      bestellungen: "Bestellungen",
+      verwaltung: "Verwaltung",
+    };
+
+    const titleElement = $("#topbar-title");
+
+    if (titleElement) {
+      titleElement.textContent =
+        pageTitles[view] || "Masora Döner";
+    }
+
+    if (view === "bestellungen") {
+      Orders.load();
+    }
+
+    if (view === "verwaltung") {
+      Admin.open();
+    }
+  },
+
+  bindTheme() {
+    this.systemThemeQuery = window.matchMedia(
+      "(prefers-color-scheme: light)",
+    );
+
+    this.systemThemeHandler = () => {
+      if (getSettings().theme_mode === "system") {
+        this.applyThemeMode("system");
+      }
+    };
+
+    if (
+      typeof this.systemThemeQuery.addEventListener ===
+      "function"
+    ) {
+      this.systemThemeQuery.addEventListener(
+        "change",
+        this.systemThemeHandler,
+      );
+    }
+
+    $$("[data-theme-toggle]").forEach((toggle) => {
+      toggle.addEventListener(
+        "click",
+        async () => {
+          const current =
+            document.documentElement.getAttribute(
+              "data-theme",
+            ) === "light"
+              ? "light"
+              : "dark";
+
+          const next =
+            current === "dark"
+              ? "light"
+              : "dark";
+
+          State.settings = {
+            ...getSettings(),
+            theme_mode: next,
+          };
+
+          this.applySettings();
+
+          try {
+            State.settings =
+              await DB.updateSettings(
+                State.settings,
+              );
+
+            this.applySettings();
+
+            toast(
+              next === "dark"
+                ? "Dunkles Design aktiviert"
+                : "Helles Design aktiviert",
+            );
+          } catch (error) {
+            fail(error);
+          }
+        },
+      );
+    });
+  },
+};
+
+/* ==========================================================================
+   Discord-Quittung über Cloudflare Worker
+   ========================================================================== */
+
+const DISCORD_WORKER_URL =
+  "https://masora-doener-kasse-worker.finnwoschech.workers.dev/receipt";
+
+async function sendReceiptToDiscord(order) {
+  if (!order) {
+    throw new Error(
+      "Keine Bestellung zum Senden vorhanden.",
+    );
+  }
+
+  const items = Array.isArray(order.items)
+    ? order.items
+    : Array.isArray(order.products)
+      ? order.products
+      : State.cart;
+
+  const response = await fetch(
+    DISCORD_WORKER_URL,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        orderId:
+          order.id ||
+          order.order_id ||
+          order.number ||
+          "Unbekannt",
+
+        customerName:
+          order.customerName ||
+          order.customer_name ||
+          order.customer ||
+          "Gast",
+
+        total:
+          order.total ||
+          order.total_amount ||
+          order.amount ||
+          order.grand_total ||
+          0,
+
+        currency: order.currency || "EUR",
+        staffName: State.user?.name || "Unbekannt",
+        items,
+      }),
+    },
+  );
+
+  const result = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(
+      result?.error ||
+        `Discord-Quittung konnte nicht gesendet werden (${response.status}).`,
+    );
+  }
+
+  return result;
+}
+
+/* ==========================================================================
+   Globale Exporte
+   ========================================================================== */
+
+window.sendReceiptToDiscord = sendReceiptToDiscord;
+window.App = App;
+window.State = State;
+window.Duty = Duty;
+window.Login = Login;
+window.ACCENT_PRESETS = ACCENT_PRESETS;
+window.getSettings = getSettings;
+window.getSessionMinutes = getSessionMinutes;
