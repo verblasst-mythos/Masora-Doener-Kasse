@@ -223,6 +223,33 @@ function fail(error) {
    ========================================================================== */
 
 let modalKeyHandler = null;
+let pageScrollPosition = 0;
+
+function lockPageScroll() {
+  pageScrollPosition = window.scrollY;
+
+  document.documentElement.classList.add("modal-open");
+  document.body.classList.add("modal-open");
+
+  document.body.style.position = "fixed";
+  document.body.style.top = `-${pageScrollPosition}px`;
+  document.body.style.left = "0";
+  document.body.style.right = "0";
+  document.body.style.width = "100%";
+}
+
+function unlockPageScroll() {
+  document.documentElement.classList.remove("modal-open");
+  document.body.classList.remove("modal-open");
+
+  document.body.style.position = "";
+  document.body.style.top = "";
+  document.body.style.left = "";
+  document.body.style.right = "";
+  document.body.style.width = "";
+
+  window.scrollTo(0, pageScrollPosition);
+}
 
 function openModal({
   title,
@@ -233,23 +260,28 @@ function openModal({
 }) {
   closeModal();
 
+  lockPageScroll();
+
   const overlay = document.createElement("div");
-  overlay.className = "overlay";
+
+  overlay.className = "overlay payment-overlay";
   overlay.id = "modal-overlay";
 
   overlay.innerHTML = `
-    <div
-      class="modal"
+    <section
+      class="modal payment-modal"
       role="dialog"
       aria-modal="true"
-      aria-label="${esc(title)}"
+      aria-labelledby="modal-title"
       ${wide ? 'style="max-width:720px"' : ""}
     >
-      <div class="modal-head">
-        <h2 class="modal-title">${esc(title)}</h2>
+      <header class="modal-head payment-modal-head">
+        <h2 class="modal-title" id="modal-title">
+          ${esc(title)}
+        </h2>
 
         <button
-          class="icon-btn"
+          class="icon-btn payment-modal-close"
           type="button"
           data-close
           aria-label="Schließen"
@@ -266,18 +298,22 @@ function openModal({
             <path d="M18 6 6 18M6 6l12 12" />
           </svg>
         </button>
-      </div>
+      </header>
 
-      <div class="modal-body">
+      <div class="modal-body payment-modal-body">
         ${bodyHTML}
       </div>
 
       ${
         footHTML
-          ? `<div class="modal-foot">${footHTML}</div>`
+          ? `
+            <footer class="modal-foot payment-modal-foot">
+              ${footHTML}
+            </footer>
+          `
           : ""
       }
-    </div>
+    </section>
   `;
 
   document.body.appendChild(overlay);
@@ -307,20 +343,18 @@ function openModal({
 }
 
 function closeModal() {
-  const modal = $("#modal-overlay");
+  const overlay = $("#modal-overlay");
 
-  if (modal) {
-    modal.remove();
+  if (overlay) {
+    overlay.remove();
   }
 
   if (modalKeyHandler) {
-    document.removeEventListener(
-      "keydown",
-      modalKeyHandler,
-    );
-
+    document.removeEventListener("keydown", modalKeyHandler);
     modalKeyHandler = null;
   }
+
+  unlockPageScroll();
 }
 
 /* ==========================================================================
