@@ -1673,3 +1673,145 @@ html[data-theme="dark"] .duty-banner {
     padding-left: 15px;
   }
 }
+/* ==========================================================
+   V2: ZAHLUNGSFENSTER – ZENTRIERT, FIXIERT, KEIN SCROLLEN
+   ========================================================== */
+
+/* Sperrt Scrollen der Seite, sobald ein Zahlungsfenster offen ist */
+html:has(.modal-backdrop:not(.hidden)),
+html:has(.modal-overlay:not(.hidden)) {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body:has(.modal-backdrop:not(.hidden)),
+body:has(.modal-overlay:not(.hidden)) {
+  height: 100vh;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+/* Der dunkle Hintergrund liegt fest über dem ganzen Bildschirm */
+.modal-backdrop:not(.hidden),
+.modal-overlay:not(.hidden) {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 9999 !important;
+
+  display: grid !important;
+  place-items: center !important;
+
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+
+  padding: 22px !important;
+  background: rgba(5, 12, 24, 0.78) !important;
+  backdrop-filter: blur(8px);
+}
+
+/* Das eigentliche Zahlungsfenster im Zentrum */
+.modal-backdrop:not(.hidden) .modal,
+.modal-overlay:not(.hidden) .modal,
+.modal-overlay:not(.hidden) .dialog,
+.modal-backdrop:not(.hidden) [role="dialog"],
+.modal-overlay:not(.hidden) [role="dialog"] {
+  position: relative !important;
+
+  width: min(100%, 500px) !important;
+  max-height: calc(100vh - 44px) !important;
+
+  margin: 0 !important;
+  overflow: hidden !important;
+
+  border: 1px solid var(--border) !important;
+  border-radius: 20px !important;
+  background: var(--surface) !important;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.42) !important;
+
+  animation: payment-modal-in 0.2s ease-out;
+}
+
+/* Kein Scrollbalken im Zahlungsfenster */
+.modal-backdrop:not(.hidden) .modal-body,
+.modal-overlay:not(.hidden) .modal-body,
+.modal-overlay:not(.hidden) .dialog-body {
+  max-height: none !important;
+  overflow: hidden !important;
+}
+
+/* Zahlungsinhalt etwas größer und klarer */
+.modal-backdrop:not(.hidden) .pay-total,
+.modal-overlay:not(.hidden) .pay-total {
+  padding: 22px !important;
+  border-radius: 15px !important;
+}
+
+.modal-backdrop:not(.hidden) .pay-total-value,
+.modal-overlay:not(.hidden) .pay-total-value {
+  font-size: 36px !important;
+}
+
+/* Kartenzahlung: klare Informationsbox mittig */
+.modal-backdrop:not(.hidden) .pay-total + .muted,
+.modal-overlay:not(.hidden) .pay-total + .muted {
+  margin: 18px 0 4px !important;
+  padding: 15px !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 12px !important;
+  color: var(--text) !important;
+  line-height: 1.55 !important;
+  text-align: center !important;
+  background: var(--bg-soft) !important;
+}
+
+/* Footer bleibt unten sauber und ohne Scrollen */
+.modal-backdrop:not(.hidden) .modal-foot,
+.modal-backdrop:not(.hidden) .modal-footer,
+.modal-overlay:not(.hidden) .modal-foot,
+.modal-overlay:not(.hidden) .modal-footer,
+.modal-overlay:not(.hidden) .dialog-foot {
+  flex: 0 0 auto !important;
+  padding: 15px 21px !important;
+}
+
+/* Große Abschluss-Schaltfläche */
+.modal-backdrop:not(.hidden) #confirm-pay,
+.modal-overlay:not(.hidden) #confirm-pay {
+  min-width: 145px;
+  min-height: 44px;
+}
+
+/* Öffnungsanimation */
+@keyframes payment-modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.975);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Kleine Displays */
+@media (max-width: 540px) {
+  .modal-backdrop:not(.hidden),
+  .modal-overlay:not(.hidden) {
+    padding: 15px !important;
+  }
+
+  .modal-backdrop:not(.hidden) .modal,
+  .modal-overlay:not(.hidden) .modal,
+  .modal-overlay:not(.hidden) .dialog,
+  .modal-backdrop:not(.hidden) [role="dialog"],
+  .modal-overlay:not(.hidden) [role="dialog"] {
+    width: 100% !important;
+    border-radius: 16px !important;
+  }
+
+  .modal-backdrop:not(.hidden) .pay-total-value,
+  .modal-overlay:not(.hidden) .pay-total-value {
+    font-size: 31px !important;
+  }
+}
