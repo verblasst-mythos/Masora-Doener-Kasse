@@ -1,324 +1,828 @@
-<!DOCTYPE html>
-<html lang="de">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#111827" />
-  <title>KassenSystem V2</title>
+<!doctype html>
+<html lang="de" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
 
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
-    rel="stylesheet"
-  />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1"
+    />
 
-  <link rel="stylesheet" href="style.css" />
-</head>
+    <title>Masora Döner — Kasse</title>
 
-<body>
-  <div class="app-shell">
-    <aside class="sidebar" id="sidebar">
-      <div class="brand">
-        <div class="brand-mark">K</div>
+    <meta
+      name="description"
+      content="Kassensystem für Masora Döner: Bestellungen aufnehmen, kassieren, Bons drucken und Tagesumsätze auswerten."
+    />
 
-        <div class="brand-copy">
-          <strong>KassenSystem</strong>
-          <span>V2 · Restaurant</span>
-        </div>
-      </div>
+    <link
+      rel="icon"
+      href="favicon.svg"
+      type="image/svg+xml"
+    />
 
-      <nav class="main-nav" aria-label="Hauptnavigation">
-        <button class="nav-item active" type="button" data-view="pos">
-          <span class="nav-icon">⌂</span>
-          <span>Kasse</span>
-        </button>
+    <link
+      rel="stylesheet"
+      href="css/style.css"
+    />
+  </head>
 
-        <button class="nav-item" type="button" data-view="open-orders">
-          <span class="nav-icon">◫</span>
-          <span>Offene Bons</span>
-          <span class="nav-badge" id="open-orders-badge">0</span>
-        </button>
+  <body>
+    <!-- ================================================================
+         Anmeldung
+         ================================================================ -->
+    <div class="login hidden" id="login">
+      <div class="login-card">
+        <div class="brand">
+          <svg
+            width="44"
+            height="44"
+            viewBox="0 0 32 32"
+            aria-label="Geschäftslogo"
+            role="img"
+          >
+            <path
+              d="M16 2.4v3.4M16 27.4v2.6"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.6"
+              stroke-linecap="round"
+            />
 
-        <button class="nav-item" type="button" data-view="tables">
-          <span class="nav-icon">▦</span>
-          <span>Tische</span>
-        </button>
+            <path
+              d="M16 6.2c5.4 0 8.2 3.5 8.2 8.2 0 .2 0 .5-.02.7H7.82c-.02-.2-.02-.5-.02-.7C7.8 9.7 10.6 6.2 16 6.2z"
+              fill="currentColor"
+            />
 
-        <button class="nav-item" type="button" data-view="orders">
-          <span class="nav-icon">☷</span>
-          <span>Bestellungen</span>
-        </button>
-      </nav>
+            <path
+              d="M8.1 17.3h15.8a20 20 0 0 1-1.1 3.5H9.2a20 20 0 0 1-1.1-3.5z"
+              fill="currentColor"
+            />
 
-      <div class="sidebar-section-label">Verwaltung</div>
+            <path
+              d="M10.4 22.6h11.2C20.3 24.7 18.4 26.5 16 27.9c-2.4-1.4-4.3-3.2-5.6-5.3z"
+              fill="currentColor"
+            />
+          </svg>
 
-      <nav class="main-nav" aria-label="Verwaltung">
-        <button class="nav-item" type="button" data-view="products">
-          <span class="nav-icon">◈</span>
-          <span>Artikel</span>
-        </button>
+          <div class="brand-text">
+            <div class="brand-name business-name-display">
+              Masora Döner
+            </div>
 
-        <button class="nav-item" type="button" data-view="employees">
-          <span class="nav-icon">◉</span>
-          <span>Mitarbeiter</span>
-        </button>
-
-        <button class="nav-item" type="button" data-view="statistics">
-          <span class="nav-icon">▥</span>
-          <span>Statistik</span>
-        </button>
-
-        <button class="nav-item" type="button" data-view="settings">
-          <span class="nav-icon">⚙</span>
-          <span>Einstellungen</span>
-        </button>
-      </nav>
-
-      <div class="sidebar-bottom">
-        <div class="shift-status">
-          <span class="status-dot"></span>
-
-          <div>
-            <strong>Kasse geöffnet</strong>
-            <span>Seit 09:00 Uhr</span>
+            <div class="brand-sub business-subtitle-display">
+              Kassensystem
+            </div>
           </div>
         </div>
 
-        <button class="employee-card" id="employee-button" type="button">
-          <span class="employee-avatar">M</span>
+        <p class="login-hint" id="login-hint">
+          PIN eingeben, um die Kasse zu öffnen
+        </p>
 
-          <span class="employee-info">
-            <strong>Max Mustermann</strong>
-            <small>Mitarbeiter</small>
+        <div class="pin-display" id="pin-display">
+          <span class="pin-dot"></span>
+          <span class="pin-dot"></span>
+          <span class="pin-dot"></span>
+          <span class="pin-dot"></span>
+        </div>
+
+        <div class="pin-pad" id="pin-pad">
+          <button type="button" data-key="1">1</button>
+          <button type="button" data-key="2">2</button>
+          <button type="button" data-key="3">3</button>
+          <button type="button" data-key="4">4</button>
+          <button type="button" data-key="5">5</button>
+          <button type="button" data-key="6">6</button>
+          <button type="button" data-key="7">7</button>
+          <button type="button" data-key="8">8</button>
+          <button type="button" data-key="9">9</button>
+
+          <button
+            type="button"
+            data-key="clear"
+            aria-label="Eingabe löschen"
+          >
+            C
+          </button>
+
+          <button type="button" data-key="0">0</button>
+
+          <button
+            type="button"
+            data-key="del"
+            aria-label="Eine Ziffer zurück"
+          >
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+            >
+              <path
+                d="M20 6H10L4 12l6 6h10V6zM17 9.5l-5 5M12 9.5l5 5"
+              />
+            </svg>
+          </button>
+        </div>
+
+        <p
+          class="login-error"
+          id="login-error"
+          role="status"
+        ></p>
+      </div>
+    </div>
+
+    <!-- ================================================================
+         Anwendung
+         ================================================================ -->
+    <div class="app hidden" id="app">
+      <!-- ==============================================================
+           Sidebar
+           ==============================================================
+      -->
+      <aside class="sidebar" aria-label="Hauptnavigation">
+        <div class="sidebar-brand">
+          <svg
+            width="34"
+            height="34"
+            viewBox="0 0 32 32"
+            aria-hidden="true"
+          >
+            <path
+              d="M16 2.4v3.4M16 27.4v2.6"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.6"
+              stroke-linecap="round"
+            />
+
+            <path
+              d="M16 6.2c5.4 0 8.2 3.5 8.2 8.2 0 .2 0 .5-.02.7H7.82c-.02-.2-.02-.5-.02-.7C7.8 9.7 10.6 6.2 16 6.2z"
+              fill="currentColor"
+            />
+
+            <path
+              d="M8.1 17.3h15.8a20 20 0 0 1-1.1 3.5H9.2a20 20 0 0 1-1.1-3.5z"
+              fill="currentColor"
+            />
+
+            <path
+              d="M10.4 22.6h11.2C20.3 24.7 18.4 26.5 16 27.9c-2.4-1.4-4.3-3.2-5.6-5.3z"
+              fill="currentColor"
+            />
+          </svg>
+
+          <div class="sidebar-brand-text">
+            <span class="sidebar-brand-name business-name-display">
+              Masora Döner
+            </span>
+
+            <span class="sidebar-brand-sub business-subtitle-display">
+              Kassensystem
+            </span>
+          </div>
+        </div>
+
+        <nav
+          class="nav sidebar-nav"
+          id="nav"
+          aria-label="Hauptbereiche"
+        >
+          <button
+            type="button"
+            data-view="kasse"
+            aria-current="true"
+          >
+            <span class="nav-icon" aria-hidden="true">
+              ▣
+            </span>
+
+            <span>Kasse</span>
+          </button>
+
+          <button
+            type="button"
+            data-view="bestellungen"
+          >
+            <span class="nav-icon" aria-hidden="true">
+              ▤
+            </span>
+
+            <span>Bestellungen</span>
+          </button>
+
+          <button
+            type="button"
+            data-view="verwaltung"
+            id="nav-admin"
+            class="hidden"
+          >
+            <span class="nav-icon" aria-hidden="true">
+              ⚙
+            </span>
+
+            <span>Verwaltung</span>
+          </button>
+        </nav>
+
+        <div class="sidebar-spacer"></div>
+
+        <div class="sidebar-user">
+          <div class="sidebar-user-status">
+            <span class="dot"></span>
+            <span>Angemeldet</span>
+          </div>
+
+          <span class="sidebar-user-name" id="user-name">
+            —
           </span>
 
-          <span class="employee-more">⋮</span>
+          <span
+            class="sidebar-user-role muted"
+            id="user-role"
+          ></span>
+        </div>
+
+        <button
+          class="sidebar-logout"
+          id="logout"
+          type="button"
+        >
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path
+              d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"
+            />
+          </svg>
+
+          <span>Abmelden</span>
         </button>
-      </div>
-    </aside>
+      </aside>
 
-    <main class="main-content">
-      <header class="topbar">
-        <div class="topbar-heading">
-          <div class="mobile-brand">
-            <div class="brand-mark">K</div>
+      <!-- ==============================================================
+           Hauptbereich
+           ==============================================================
+      -->
+      <div class="app-content">
+        <header class="topbar">
+          <div class="topbar-page">
+            <span class="topbar-eyebrow">
+              Masora Döner
+            </span>
+
+            <h1 class="topbar-title" id="topbar-title">
+              Kasse
+            </h1>
           </div>
 
-          <div>
-            <p class="eyebrow" id="page-eyebrow">Kasse</p>
-            <h1 id="page-title">Neue Bestellung</h1>
-          </div>
-        </div>
+          <div class="topbar-right">
+            <button
+              class="duty-chip off"
+              id="duty-chip"
+              type="button"
+              aria-label="Dienststatus"
+            >
+              <span class="duty-dot"></span>
 
-        <div class="topbar-actions">
-          <div class="connection-status">
-            <span class="connection-dot"></span>
-            <span>Online</span>
-          </div>
+              <span class="duty-text">
+                <span class="duty-state" id="duty-state">
+                  Nicht im Dienst
+                </span>
 
-          <button
-            class="icon-button"
-            id="fullscreen-button"
-            type="button"
-            aria-label="Vollbild aktivieren"
-            title="Vollbild"
+                <span class="duty-since" id="duty-since"></span>
+              </span>
+            </button>
+
+            <button
+              class="btn btn-sm"
+              id="duty-toggle"
+              type="button"
+            >
+              Einstempeln
+            </button>
+
+            <span
+              class="session-left"
+              id="session-left"
+            ></span>
+
+            <button
+              class="icon-btn"
+              data-theme-toggle
+              type="button"
+              aria-label="Design wechseln"
+            ></button>
+          </div>
+        </header>
+
+        <main class="main">
+          <!-- ==========================================================
+               Kasse
+               ==========================================================
+          -->
+          <section
+            class="view"
+            data-view-panel="kasse"
           >
-            ⛶
-          </button>
+            <div class="pos-left">
+              <div class="cash-page-head">
+                <div>
+                  <p class="cash-page-eyebrow">
+                    Verkauf
+                  </p>
 
-          <div class="date-display">
-            <span class="date-icon">▣</span>
-
-            <div>
-              <strong id="current-time">--:--</strong>
-              <span id="current-date">--.--.----</span>
-            </div>
-          </div>
-
-          <button
-            class="mobile-menu-button"
-            id="mobile-menu-button"
-            type="button"
-            aria-label="Menü öffnen"
-          >
-            ☰
-          </button>
-        </div>
-      </header>
-
-      <div id="view-container">
-        <section class="pos-layout" id="pos-view">
-          <div class="product-area">
-            <div class="welcome-row">
-              <div>
-                <span class="section-kicker">Schnellverkauf</span>
-                <h2>Was möchtest du verkaufen?</h2>
-              </div>
-
-              <button class="outline-button" id="new-order-button" type="button">
-                <span>＋</span>
-                Neuer Bon
-              </button>
-            </div>
-
-            <label class="search-box">
-              <span class="search-icon">⌕</span>
-
-              <input
-                id="product-search"
-                type="search"
-                placeholder="Artikel, Kategorie oder Nummer suchen …"
-                autocomplete="off"
-              />
-
-              <kbd>F2</kbd>
-            </label>
-
-            <div class="category-list" id="category-list"></div>
-
-            <div class="product-toolbar">
-              <div>
-                <h2 id="category-title">Alle Artikel</h2>
-                <p id="product-count">0 Artikel verfügbar</p>
-              </div>
-
-              <button id="favorites-button" class="filter-button" type="button">
-                <span>☆</span>
-                Favoriten
-              </button>
-            </div>
-
-            <div id="product-grid" class="product-grid"></div>
-          </div>
-
-          <aside class="cart-panel">
-            <div class="cart-header">
-              <div class="cart-heading">
-                <div class="cart-title-row">
-                  <p class="eyebrow">Aktueller Bon</p>
-
-                  <span class="order-status">Neu</span>
+                  <h2 class="cash-page-title">
+                    Artikel auswählen
+                  </h2>
                 </div>
 
-                <button id="order-type-button" class="order-type-button" type="button">
-                  <span id="order-title">Außer Haus</span>
-                  <span>⌄</span>
+                <span class="cash-page-hint">
+                  Wähle Artikel aus der Speisekarte
+                </span>
+              </div>
+
+              <div
+                class="cat-bar"
+                id="cat-bar"
+                role="group"
+                aria-label="Kategorien"
+              ></div>
+
+              <div
+                class="product-grid scroll"
+                id="product-grid"
+              ></div>
+            </div>
+
+            <aside class="cart" aria-label="Warenkorb">
+              <div class="cart-head">
+                <div>
+                  <span class="cart-kicker">
+                    Aktuelle Bestellung
+                  </span>
+
+                  <div class="cart-title-row">
+                    <span class="cart-title">
+                      Warenkorb
+                    </span>
+
+                    <span class="badge" id="cart-count">
+                      0
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  class="btn btn-sm btn-ghost"
+                  id="cart-clear"
+                  type="button"
+                >
+                  Leeren
                 </button>
-
-                <span class="order-number" id="order-number">Bon #1001</span>
               </div>
 
-              <button
-                id="clear-cart-button"
-                class="text-button danger"
-                type="button"
-              >
-                Leeren
-              </button>
+              <div
+                class="cart-items scroll"
+                id="cart-items"
+              ></div>
+
+              <div class="cart-foot">
+                <div
+                  id="duty-banner"
+                  class="duty-banner hidden"
+                >
+                  <span>
+                    Du bist nicht im Dienst —
+                    Bestellungen sind gesperrt.
+                  </span>
+
+                  <button
+                    class="btn btn-sm btn-primary"
+                    id="duty-banner-btn"
+                    type="button"
+                  >
+                    Einstempeln
+                  </button>
+                </div>
+
+                <div class="cart-settings">
+                  <div class="field">
+                    <label for="discount-select">
+                      Rabatt
+                    </label>
+
+                    <select
+                      class="select"
+                      id="discount-select"
+                    >
+                      <option value="">
+                        Kein Rabatt
+                      </option>
+                    </select>
+                  </div>
+
+                  <div
+                    id="coop-box"
+                    class="coop-box"
+                  ></div>
+                </div>
+
+                <div class="cart-summary">
+                  <div class="sum-row">
+                    <span>Zwischensumme</span>
+                    <span id="sum-subtotal">
+                      0,00 €
+                    </span>
+                  </div>
+
+                  <div
+                    class="sum-row discount hidden"
+                    id="row-discount"
+                  >
+                    <span id="label-discount">
+                      Rabatt
+                    </span>
+
+                    <span id="sum-discount">
+                      0,00 €
+                    </span>
+                  </div>
+
+                  <div class="sum-row">
+                    <span>enthaltene MwSt.</span>
+                    <span id="sum-vat">
+                      0,00 €
+                    </span>
+                  </div>
+
+                  <div class="sum-total">
+                    <span class="sum-total-label">
+                      Gesamt
+                    </span>
+
+                    <span
+                      class="sum-total-value"
+                      id="sum-total"
+                    >
+                      0,00 €
+                    </span>
+                  </div>
+                </div>
+
+                <div class="pay-split">
+                  <button
+                    class="btn"
+                    id="pay-card"
+                    type="button"
+                    disabled
+                  >
+                    Karte
+                  </button>
+
+                  <button
+                    class="btn btn-primary"
+                    id="pay-cash"
+                    type="button"
+                    disabled
+                  >
+                    Bar kassieren
+                  </button>
+                </div>
+              </div>
+            </aside>
+          </section>
+
+          <!-- ==========================================================
+               Bestellungen
+               ==========================================================
+          -->
+          <section
+            class="view hidden"
+            data-view-panel="bestellungen"
+          >
+            <div class="page">
+              <div class="page-head">
+                <div>
+                  <p class="page-eyebrow">
+                    Verkaufshistorie
+                  </p>
+
+                  <h1 class="page-title">
+                    Bestellungen
+                  </h1>
+                </div>
+
+                <span class="spacer"></span>
+
+                <div class="page-actions">
+                  <div class="subnav" id="o-range">
+                    <button
+                      type="button"
+                      data-range="today"
+                      aria-current="true"
+                    >
+                      Heute
+                    </button>
+
+                    <button
+                      type="button"
+                      data-range="week"
+                    >
+                      7 Tage
+                    </button>
+
+                    <button
+                      type="button"
+                      data-range="all"
+                    >
+                      Alle
+                    </button>
+                  </div>
+
+                  <select
+                    class="select select-sm"
+                    id="o-staff"
+                    aria-label="Mitarbeiter filtern"
+                  >
+                    <option value="">
+                      Alle Mitarbeiter
+                    </option>
+                  </select>
+
+                  <button
+                    class="btn btn-sm"
+                    id="o-reload"
+                    type="button"
+                  >
+                    Aktualisieren
+                  </button>
+                </div>
+
+                <span
+                  class="muted"
+                  id="o-scope"
+                  style="font-size:var(--text-sm)"
+                ></span>
+              </div>
+
+              <div class="page-body scroll">
+                <div class="stats">
+                  <div class="stat accent">
+                    <div class="stat-label">Umsatz</div>
+                    <div class="stat-value" id="o-revenue">
+                      0,00 €
+                    </div>
+                  </div>
+
+                  <div class="stat">
+                    <div class="stat-label">
+                      Bestellungen
+                    </div>
+
+                    <div class="stat-value" id="o-count">
+                      0
+                    </div>
+                  </div>
+
+                  <div class="stat">
+                    <div class="stat-label">
+                      Ø pro Bon
+                    </div>
+
+                    <div class="stat-value" id="o-avg">
+                      0,00 €
+                    </div>
+                  </div>
+
+                  <div class="stat">
+                    <div class="stat-label">Bar</div>
+
+                    <div class="stat-value" id="o-cash">
+                      0,00 €
+                    </div>
+                  </div>
+
+                  <div class="stat">
+                    <div class="stat-label">Karte</div>
+
+                    <div class="stat-value" id="o-card">
+                      0,00 €
+                    </div>
+                  </div>
+                </div>
+
+                <div class="card">
+                  <div class="card-head">
+                    <span class="card-title">
+                      Alle Bestellungen
+                    </span>
+
+                    <span class="muted">
+                      Bons und Zahlungsarten
+                    </span>
+                  </div>
+
+                  <div class="table-wrap">
+                    <table class="data">
+                      <thead>
+                        <tr>
+                          <th>Bon</th>
+                          <th>Zeit</th>
+                          <th>Inhalt</th>
+                          <th>Zahlung</th>
+                          <th class="num">Summe</th>
+                          <th>Status</th>
+                          <th></th>
+                        </tr>
+                      </thead>
+
+                      <tbody id="o-tbody"></tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div
+                  class="card hidden"
+                  id="o-perstaff"
+                  style="margin-top:var(--space-6)"
+                >
+                  <div class="card-head">
+                    <span class="card-title">
+                      Umsatz je Mitarbeiter
+                    </span>
+
+                    <span
+                      class="muted"
+                      style="font-size:var(--text-sm)"
+                    >
+                      Nur für den Chef sichtbar
+                    </span>
+                  </div>
+
+                  <div class="table-wrap">
+                    <table class="data">
+                      <thead>
+                        <tr>
+                          <th>Mitarbeiter</th>
+                          <th class="num">Bons</th>
+                          <th class="num">Bar</th>
+                          <th class="num">Karte</th>
+                          <th class="num">Umsatz</th>
+                          <th>Anteil</th>
+                          <th></th>
+                        </tr>
+                      </thead>
+
+                      <tbody
+                        id="o-perstaff-body"
+                      ></tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
             </div>
+          </section>
 
-            <div class="cart-options">
-              <button class="cart-option-button" id="customer-button" type="button">
-                <span>♙</span>
-                Kunde hinzufügen
-              </button>
+          <!-- ==========================================================
+               Verwaltung
+               ==========================================================
+          -->
+          <section
+            class="view hidden"
+            data-view-panel="verwaltung"
+          >
+            <div class="page">
+              <div class="page-head">
+                <div>
+                  <p class="page-eyebrow">
+                    Administration
+                  </p>
 
-              <button class="cart-option-button" id="note-button" type="button">
-                <span>☷</span>
-                Notiz
-              </button>
+                  <h1 class="page-title">
+                    Verwaltung
+                  </h1>
+                </div>
+
+                <span class="spacer"></span>
+
+                <div
+                  class="subnav"
+                  id="admin-subnav"
+                >
+                  <button
+                    type="button"
+                    data-tab="produkte"
+                    aria-current="true"
+                    id="tab-produkte"
+                  >
+                    Produkte
+                  </button>
+
+                  <button
+                    type="button"
+                    data-tab="lager"
+                    id="tab-lager"
+                  >
+                    Lager
+                  </button>
+
+                  <button
+                    type="button"
+                    data-tab="rabatte"
+                    id="tab-rabatte"
+                  >
+                    Rabatte
+                  </button>
+
+                  <button
+                    type="button"
+                    data-tab="kooperationen"
+                    id="tab-kooperationen"
+                  >
+                    Kooperationen
+                  </button>
+
+                  <button
+                    type="button"
+                    data-tab="personal"
+                    id="tab-personal"
+                  >
+                    Personal
+                  </button>
+
+                  <button
+                    type="button"
+                    data-tab="dienstzeiten"
+                    id="tab-dienstzeiten"
+                  >
+                    Dienstzeiten
+                  </button>
+
+                  <button
+                    type="button"
+                    data-tab="einstellungen"
+                    id="tab-einstellungen"
+                  >
+                    Einstellungen
+                  </button>
+
+                  <button
+                    type="button"
+                    data-tab="abschluss"
+                    id="tab-abschluss"
+                  >
+                    Tagesabschluss
+                  </button>
+                </div>
+              </div>
+
+              <div
+                class="page-body scroll"
+                id="admin-body"
+              ></div>
             </div>
-
-            <div id="cart-items" class="cart-items">
-              <div class="empty-cart">
-                <div class="empty-cart-icon">⌑</div>
-                <h3>Noch keine Artikel</h3>
-                <p>Wähle links einen Artikel aus, um ihn dem Bon hinzuzufügen.</p>
-              </div>
-            </div>
-
-            <div class="cart-summary">
-              <div class="summary-row">
-                <span>Artikel</span>
-                <strong id="item-count-value">0</strong>
-              </div>
-
-              <div class="summary-row">
-                <span>Zwischensumme</span>
-                <strong id="subtotal-value">0,00 €</strong>
-              </div>
-
-              <div class="summary-row muted">
-                <span>Enthaltene MwSt. (19 %)</span>
-                <span id="tax-value">0,00 €</span>
-              </div>
-
-              <div class="summary-total">
-                <span>Gesamt</span>
-                <strong id="total-value">0,00 €</strong>
-              </div>
-            </div>
-
-            <div class="cart-actions">
-              <button id="park-order-button" class="secondary-action" type="button">
-                <span>⌁</span>
-                Bon parken
-              </button>
-
-              <button id="payment-button" class="primary-action" type="button">
-                <span>Bezahlen</span>
-                <span>→</span>
-              </button>
-            </div>
-          </aside>
-        </section>
-
-        <section class="placeholder-view hidden" id="placeholder-view">
-          <div class="placeholder-icon" id="placeholder-icon">◫</div>
-          <span class="section-kicker" id="placeholder-kicker">Bereich</span>
-          <h2 id="placeholder-title">Dieser Bereich ist vorbereitet</h2>
-          <p id="placeholder-text">
-            Die neue Oberfläche ist vorbereitet. Als Nächstes wird dieser Bereich
-            mit deiner bestehenden Logik verbunden.
-          </p>
-
-          <button class="primary-action placeholder-back-button" id="back-to-pos-button" type="button">
-            Zur Kasse
-            <span>→</span>
-          </button>
-        </section>
+          </section>
+        </main>
       </div>
-    </main>
-  </div>
-
-  <div class="modal-backdrop hidden" id="modal-backdrop">
-    <div
-      class="modal"
-      id="modal"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="modal-title"
-    >
-      <div class="modal-header">
-        <div>
-          <p class="eyebrow" id="modal-eyebrow">Aktion</p>
-          <h2 id="modal-title">Dialog</h2>
-        </div>
-
-        <button class="modal-close" id="modal-close-button" type="button" aria-label="Dialog schließen">
-          ×
-        </button>
-      </div>
-
-      <div class="modal-body" id="modal-body"></div>
-
-      <div class="modal-footer" id="modal-footer"></div>
     </div>
-  </div>
 
-  <div class="toast-container" id="toast-container" aria-live="polite"></div>
+    <div
+      class="toasts"
+      id="toasts"
+      aria-live="polite"
+    ></div>
 
-  <script src="app.js"></script>
-</body>
+    <!-- ================================================================
+         Scripts: Reihenfolge ist wichtig
+         ================================================================ -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+
+    <script src="js/db.js"></script>
+    <script src="js/app.js"></script>
+    <script src="js/kasse.js"></script>
+    <script src="js/orders.js"></script>
+    <script src="js/admin.js"></script>
+
+    <script>
+      Kasse.bind();
+      Orders.bind();
+      Admin.bind();
+
+      App.boot();
+    </script>
+  </body>
 </html>
