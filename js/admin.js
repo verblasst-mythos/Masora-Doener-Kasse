@@ -1973,284 +1973,382 @@ const Admin = {
      Einstellungen und Personalisierung
      ------------------------------------------------------------------------ */
 
-  renderSettings() {
-    const defaults = window.DEFAULT_SETTINGS || {
-      business_name: "Masora Döner",
-      business_subtitle: "Kassensystem",
-      logo_url: null,
-      primary_color: "#e95420",
-      accent_color: "#e35d6a",
-      theme_mode: "dark",
-      accent_preset: "paprika",
-      compact_mode: false,
-      default_payment: "cash",
-      show_vat: true,
-      auto_print_receipt: false,
-      confirm_cart_clear: true,
-      session_timeout_minutes: 30,
-    };
+renderSettings() {
+  const defaults = window.DEFAULT_SETTINGS || {
+    business_name: "Masora Döner",
+    business_subtitle: "Kassensystem",
+    logo_url: null,
+    primary_color: "#e95420",
+    accent_color: "#e35d6a",
+    theme_mode: "dark",
+    accent_preset: "paprika",
+    compact_mode: false,
+    default_payment: "cash",
+    show_vat: true,
+    auto_print_receipt: false,
+    confirm_cart_clear: true,
+    session_timeout_minutes: 30,
+  };
 
-    const settings = {
-      ...defaults,
-      ...(State.settings || {}),
-    };
+  const settings = {
+    ...defaults,
+    ...(State.settings || {}),
+  };
 
-    const validHex = (value, fallback) =>
-      /^#[0-9a-fA-F]{6}$/.test(String(value || ""))
-        ? String(value)
-        : fallback;
+  const validHex = (value, fallback) =>
+    /^#[0-9a-fA-F]{6}$/.test(String(value || ""))
+      ? String(value)
+      : fallback;
 
-    const validTheme = ["dark", "light", "system"].includes(
-      settings.theme_mode,
+  const validTheme = ["dark", "light", "system"].includes(
+    settings.theme_mode,
+  )
+    ? settings.theme_mode
+    : "dark";
+
+  const validPreset = [
+    "paprika",
+    "red",
+    "gold",
+    "green",
+    "blue",
+    "purple",
+  ].includes(settings.accent_preset)
+    ? settings.accent_preset
+    : "paprika";
+
+  const validPayment =
+    settings.default_payment === "card"
+      ? "card"
+      : "cash";
+
+  const validSession = [15, 30, 60, 120].includes(
+    Number(settings.session_timeout_minutes),
+  )
+    ? Number(settings.session_timeout_minutes)
+    : 30;
+
+  const presets = [
+    { id: "paprika", name: "Paprika", color: "#e25a24" },
+    { id: "red", name: "Rot", color: "#d94c58" },
+    { id: "gold", name: "Gold", color: "#d89b28" },
+    { id: "green", name: "Grün", color: "#55a86a" },
+    { id: "blue", name: "Blau", color: "#4e8edc" },
+    { id: "purple", name: "Lila", color: "#8a6bd1" },
+  ];
+
+  const navItems = [
+    {
+      id: "business",
+      icon: "⌂",
+      title: "Betrieb",
+      description: "Name, Untertitel und Logo",
+    },
+    {
+      id: "design",
+      icon: "◐",
+      title: "Design",
+      description: "Theme, Farben und Ansicht",
+    },
+    {
+      id: "pos",
+      icon: "▣",
+      title: "Kasse",
+      description: "Zahlung und Bon-Ablauf",
+    },
+    {
+      id: "security",
+      icon: "◉",
+      title: "Sicherheit",
+      description: "Sitzung und automatische Abmeldung",
+    },
+  ];
+
+  const settingsNavHtml = navItems
+    .map(
+      (item) => `
+        <button
+          class="settings-nav-item"
+          type="button"
+          data-settings-section="${item.id}"
+          aria-current="${item.id === "business"}"
+        >
+          <span class="settings-nav-icon">${item.icon}</span>
+
+          <span class="settings-nav-copy">
+            <strong>${esc(item.title)}</strong>
+            <small>${esc(item.description)}</small>
+          </span>
+
+          <span class="settings-nav-arrow">›</span>
+        </button>
+      `,
     )
-      ? settings.theme_mode
-      : "dark";
+    .join("");
 
-    const validPreset = [
-      "paprika",
-      "red",
-      "gold",
-      "green",
-      "blue",
-      "purple",
-    ].includes(settings.accent_preset)
-      ? settings.accent_preset
-      : "paprika";
-
-    const validPayment =
-      settings.default_payment === "card"
-        ? "card"
-        : "cash";
-
-    const validSession = [15, 30, 60, 120].includes(
-      Number(settings.session_timeout_minutes),
+  const presetHtml = presets
+    .map(
+      (preset) => `
+        <button
+          class="accent-option ${
+            preset.id === validPreset ? "is-selected" : ""
+          }"
+          type="button"
+          data-accent-option="${preset.id}"
+          style="--option-color:${preset.color}"
+          aria-pressed="${preset.id === validPreset}"
+        >
+          <span class="accent-option-dot"></span>
+          <span>${esc(preset.name)}</span>
+        </button>
+      `,
     )
-      ? Number(settings.session_timeout_minutes)
-      : 30;
+    .join("");
 
-    const presets = [
-      {
-        id: "paprika",
-        name: "Paprika",
-        color: "#e25a24",
-      },
-      {
-        id: "red",
-        name: "Rot",
-        color: "#d94c58",
-      },
-      {
-        id: "gold",
-        name: "Gold",
-        color: "#d89b28",
-      },
-      {
-        id: "green",
-        name: "Grün",
-        color: "#55a86a",
-      },
-      {
-        id: "blue",
-        name: "Blau",
-        color: "#4e8edc",
-      },
-      {
-        id: "purple",
-        name: "Lila",
-        color: "#8a6bd1",
-      },
-    ];
+  $("#admin-body").innerHTML = `
+    <div class="settings-v2">
+      <aside class="settings-sidebar">
+        <div class="settings-sidebar-head">
+          <span class="settings-sidebar-kicker">System</span>
+          <h2>Einstellungen</h2>
+          <p>
+            Passe Kasse, Design und Ablauf an.
+          </p>
+        </div>
 
-    const presetHTML = presets
-      .map(
-        (preset) => `
-          <button
-            class="accent-option ${
-              preset.id === validPreset ? "is-selected" : ""
-            }"
-            type="button"
-            data-accent-option="${preset.id}"
-            style="--option-color:${preset.color}"
-            aria-pressed="${
-              preset.id === validPreset
-            }"
-          >
-            <span class="accent-option-dot"></span>
-            <span>${esc(preset.name)}</span>
-          </button>
-        `,
-      )
-      .join("");
+        <nav class="settings-nav" aria-label="Einstellungen">
+          ${settingsNavHtml}
+        </nav>
 
-    $("#admin-body").innerHTML = `
-      <div class="settings-layout">
-        <section class="card settings-card">
-          <div class="card-head">
+        <div class="settings-sidebar-footer">
+          <span class="settings-sidebar-dot"></span>
+          <span>Änderungen werden erst nach dem Speichern übernommen.</span>
+        </div>
+      </aside>
+
+      <section class="settings-content">
+        <!-- Betrieb -->
+        <section
+          class="settings-section"
+          data-settings-panel="business"
+        >
+          <div class="settings-page-head">
             <div>
-              <span class="card-title">Branding</span>
-              <p class="settings-description">
-                Name und Erscheinungsbild des Geschäfts.
+              <span class="settings-page-kicker">Betrieb</span>
+              <h2>Geschäftsdaten</h2>
+              <p>
+                Diese Angaben erscheinen in der Navigation und auf Bons.
               </p>
             </div>
+
+            <div class="settings-section-icon">⌂</div>
           </div>
 
-          <div class="settings-form">
-            <div class="field">
-              <label for="set-name">
-                Geschäftsname
-              </label>
-
-              <input
-                class="input"
-                id="set-name"
-                type="text"
-                value="${esc(
-                  String(
-                    settings.business_name || "",
-                  ).trim() || "Masora Döner",
-                )}"
-                placeholder="Masora Döner"
-                autocomplete="organization"
-              />
+          <div class="settings-content-card">
+            <div class="settings-content-card-head">
+              <div>
+                <strong>Markenauftritt</strong>
+                <span>Name und Logo deiner Kasse</span>
+              </div>
             </div>
 
-            <div class="field">
-              <label for="set-subtitle">
-                Untertitel
-              </label>
+            <div class="settings-form settings-form-two">
+              <div class="field">
+                <label for="set-name">Geschäftsname</label>
+                <input
+                  class="input"
+                  id="set-name"
+                  type="text"
+                  value="${esc(
+                    String(settings.business_name || "").trim() ||
+                      "Masora Döner",
+                  )}"
+                  placeholder="Masora Döner"
+                  autocomplete="organization"
+                />
+              </div>
 
-              <input
-                class="input"
-                id="set-subtitle"
-                type="text"
-                value="${esc(
-                  String(
-                    settings.business_subtitle || "",
-                  ).trim() || "Kassensystem",
-                )}"
-                placeholder="Kassensystem"
-              />
+              <div class="field">
+                <label for="set-subtitle">Untertitel</label>
+                <input
+                  class="input"
+                  id="set-subtitle"
+                  type="text"
+                  value="${esc(
+                    String(settings.business_subtitle || "").trim() ||
+                      "Kassensystem",
+                  )}"
+                  placeholder="Kassensystem"
+                />
+              </div>
+
+              <div class="field settings-form-full">
+                <label for="set-logo">Logo-URL</label>
+                <input
+                  class="input"
+                  id="set-logo"
+                  type="url"
+                  value="${esc(String(settings.logo_url || "").trim())}"
+                  placeholder="https://example.com/logo.png"
+                />
+                <span class="field-hint">
+                  Optional. Nutze eine direkte Bild-URL, wenn du ein eigenes Logo anzeigen möchtest.
+                </span>
+              </div>
             </div>
 
-            <div class="field">
-              <label for="set-logo">
-                Logo-URL
-              </label>
-
-              <input
-                class="input"
-                id="set-logo"
-                type="url"
-                value="${esc(
-                  String(settings.logo_url || "").trim(),
-                )}"
-                placeholder="https://example.com/logo.png"
-              />
+            <div class="brand-preview" id="brand-preview">
+              <span class="brand-preview-mark">M</span>
+              <span>
+                <strong id="preview-business-name">
+                  ${esc(
+                    String(settings.business_name || "").trim() ||
+                      "Masora Döner",
+                  )}
+                </strong>
+                <small id="preview-business-subtitle">
+                  ${esc(
+                    String(settings.business_subtitle || "").trim() ||
+                      "Kassensystem",
+                  )}
+                </small>
+              </span>
             </div>
           </div>
         </section>
 
-        <section class="card settings-card">
-          <div class="card-head">
+        <!-- Design -->
+        <section
+          class="settings-section hidden"
+          data-settings-panel="design"
+        >
+          <div class="settings-page-head">
             <div>
-              <span class="card-title">Erscheinung</span>
-              <p class="settings-description">
-                Theme und Akzentfarben der Anwendung.
+              <span class="settings-page-kicker">Design</span>
+              <h2>Farben und Erscheinung</h2>
+              <p>
+                Wähle ein Theme und passe die Markenfarbe an.
               </p>
             </div>
+
+            <div class="settings-section-icon">◐</div>
           </div>
 
-          <div class="settings-form">
-            <div class="field">
-              <label for="set-theme">
-                Theme
-              </label>
-
-              <select class="select" id="set-theme">
-                <option
-                  value="dark"
-                  ${
-                    validTheme === "dark"
-                      ? "selected"
-                      : ""
-                  }
-                >
-                  Dunkel
-                </option>
-
-                <option
-                  value="light"
-                  ${
-                    validTheme === "light"
-                      ? "selected"
-                      : ""
-                  }
-                >
-                  Hell
-                </option>
-
-                <option
-                  value="system"
-                  ${
-                    validTheme === "system"
-                      ? "selected"
-                      : ""
-                  }
-                >
-                  System
-                </option>
-              </select>
+          <div class="settings-content-card">
+            <div class="settings-content-card-head">
+              <div>
+                <strong>Darstellung</strong>
+                <span>Farbschema der gesamten Anwendung</span>
+              </div>
             </div>
 
-            <div class="field">
-              <label>Akzentfarbe</label>
+            <div class="theme-choice-grid">
+              <button
+                class="theme-choice ${validTheme === "light" ? "is-selected" : ""}"
+                type="button"
+                data-theme-choice="light"
+                aria-pressed="${validTheme === "light"}"
+              >
+                <span class="theme-choice-preview theme-light-preview">
+                  <span></span><span></span><span></span>
+                </span>
+                <strong>Hell</strong>
+                <small>Helle Arbeitsfläche</small>
+              </button>
 
-              <div class="accent-options">
-                ${presetHTML}
+              <button
+                class="theme-choice ${validTheme === "dark" ? "is-selected" : ""}"
+                type="button"
+                data-theme-choice="dark"
+                aria-pressed="${validTheme === "dark"}"
+              >
+                <span class="theme-choice-preview theme-dark-preview">
+                  <span></span><span></span><span></span>
+                </span>
+                <strong>Dunkel</strong>
+                <small>Ruhig für Abendbetrieb</small>
+              </button>
+
+              <button
+                class="theme-choice ${validTheme === "system" ? "is-selected" : ""}"
+                type="button"
+                data-theme-choice="system"
+                aria-pressed="${validTheme === "system"}"
+              >
+                <span class="theme-choice-preview theme-system-preview">
+                  <span></span><span></span><span></span>
+                </span>
+                <strong>System</strong>
+                <small>Folgt dem Gerät</small>
+              </button>
+            </div>
+
+            <input
+              id="set-theme"
+              type="hidden"
+              value="${validTheme}"
+            />
+          </div>
+
+          <div class="settings-content-card">
+            <div class="settings-content-card-head">
+              <div>
+                <strong>Akzentfarbe</strong>
+                <span>Wird für Navigation, Buttons und Highlights verwendet</span>
               </div>
+            </div>
+
+            <div class="accent-options settings-accent-options">
+              ${presetHtml}
             </div>
 
             <div class="settings-color-grid">
               <div class="field">
-                <label for="set-primary-color">
-                  Primärfarbe
-                </label>
-
+                <label for="set-primary-color">Primärfarbe</label>
                 <input
                   id="set-primary-color"
                   type="color"
-                  value="${validHex(
-                    settings.primary_color,
-                    "#e95420",
-                  )}"
+                  value="${validHex(settings.primary_color, "#e95420")}"
                 />
               </div>
 
               <div class="field">
-                <label for="set-accent-color">
-                  Zusatzfarbe
-                </label>
-
+                <label for="set-accent-color">Zusatzfarbe</label>
                 <input
                   id="set-accent-color"
                   type="color"
-                  value="${validHex(
-                    settings.accent_color,
-                    "#e35d6a",
-                  )}"
+                  value="${validHex(settings.accent_color, "#e35d6a")}"
                 />
               </div>
             </div>
 
+            <div class="color-preview" id="color-preview">
+              <div class="color-preview-sidebar">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+
+              <div class="color-preview-main">
+                <span class="color-preview-title">Vorschau</span>
+                <span class="color-preview-line"></span>
+
+                <div class="color-preview-product">
+                  <span>Produkt</span>
+                  <strong>7,50 €</strong>
+                </div>
+
+                <button type="button">Bezahlen</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-content-card">
             <label class="setting-toggle">
               <input
                 id="set-compact"
                 type="checkbox"
-                ${
-                  settings.compact_mode
-                    ? "checked"
-                    : ""
-                }
+                ${settings.compact_mode ? "checked" : ""}
               />
 
               <span class="setting-toggle-content">
@@ -2259,7 +2357,7 @@ const Admin = {
                 </span>
 
                 <span class="setting-toggle-text">
-                  Kleinere Produktkarten und Abstände verwenden.
+                  Kleinere Produktkarten und geringere Abstände verwenden.
                 </span>
               </span>
 
@@ -2268,63 +2366,80 @@ const Admin = {
           </div>
         </section>
 
-        <section class="card settings-card">
-          <div class="card-head">
+        <!-- Kasse -->
+        <section
+          class="settings-section hidden"
+          data-settings-panel="pos"
+        >
+          <div class="settings-page-head">
             <div>
-              <span class="card-title">Kassenverhalten</span>
-              <p class="settings-description">
-                Lege den Ablauf beim Kassieren fest.
+              <span class="settings-page-kicker">Kasse</span>
+              <h2>Kassierablauf</h2>
+              <p>
+                Lege fest, wie Bestellungen und Bons behandelt werden.
               </p>
             </div>
+
+            <div class="settings-section-icon">▣</div>
           </div>
 
-          <div class="settings-form">
-            <div class="field">
-              <label for="set-payment">
-                Standardzahlungsart
-              </label>
-
-              <select class="select" id="set-payment">
-                <option
-                  value="cash"
-                  ${
-                    validPayment === "cash"
-                      ? "selected"
-                      : ""
-                  }
-                >
-                  Bar
-                </option>
-
-                <option
-                  value="card"
-                  ${
-                    validPayment === "card"
-                      ? "selected"
-                      : ""
-                  }
-                >
-                  Karte
-                </option>
-              </select>
+          <div class="settings-content-card">
+            <div class="settings-content-card-head">
+              <div>
+                <strong>Standardzahlung</strong>
+                <span>Diese Zahlungsart wird beim Kassieren hervorgehoben</span>
+              </div>
             </div>
 
+            <div class="payment-choice-grid">
+              <button
+                class="payment-choice ${
+                  validPayment === "cash" ? "is-selected" : ""
+                }"
+                type="button"
+                data-payment-choice="cash"
+                aria-pressed="${validPayment === "cash"}"
+              >
+                <span class="payment-choice-icon">€</span>
+                <span>
+                  <strong>Barzahlung</strong>
+                  <small>Rückgeld berechnen</small>
+                </span>
+              </button>
+
+              <button
+                class="payment-choice ${
+                  validPayment === "card" ? "is-selected" : ""
+                }"
+                type="button"
+                data-payment-choice="card"
+                aria-pressed="${validPayment === "card"}"
+              >
+                <span class="payment-choice-icon">▰</span>
+                <span>
+                  <strong>Kartenzahlung</strong>
+                  <small>Terminal-Zahlung</small>
+                </span>
+              </button>
+            </div>
+
+            <input
+              id="set-payment"
+              type="hidden"
+              value="${validPayment}"
+            />
+          </div>
+
+          <div class="settings-content-card settings-toggle-list">
             <label class="setting-toggle">
               <input
                 id="set-vat"
                 type="checkbox"
-                ${
-                  settings.show_vat !== false
-                    ? "checked"
-                    : ""
-                }
+                ${settings.show_vat !== false ? "checked" : ""}
               />
 
               <span class="setting-toggle-content">
-                <span class="setting-toggle-title">
-                  MwSt. anzeigen
-                </span>
-
+                <span class="setting-toggle-title">MwSt. anzeigen</span>
                 <span class="setting-toggle-text">
                   Die enthaltene Mehrwertsteuer im Warenkorb anzeigen.
                 </span>
@@ -2337,20 +2452,15 @@ const Admin = {
               <input
                 id="set-print"
                 type="checkbox"
-                ${
-                  settings.auto_print_receipt
-                    ? "checked"
-                    : ""
-                }
+                ${settings.auto_print_receipt ? "checked" : ""}
               />
 
               <span class="setting-toggle-content">
                 <span class="setting-toggle-title">
                   Bon automatisch drucken
                 </span>
-
                 <span class="setting-toggle-text">
-                  Nach dem Bezahlen automatisch den Druckdialog öffnen.
+                  Nach dem Bezahlen den Druckdialog automatisch öffnen.
                 </span>
               </span>
 
@@ -2361,20 +2471,15 @@ const Admin = {
               <input
                 id="set-confirm-clear"
                 type="checkbox"
-                ${
-                  settings.confirm_cart_clear !== false
-                    ? "checked"
-                    : ""
-                }
+                ${settings.confirm_cart_clear !== false ? "checked" : ""}
               />
 
               <span class="setting-toggle-content">
                 <span class="setting-toggle-title">
-                  Leeren des Warenkorbs bestätigen
+                  Warenkorb-Leeren bestätigen
                 </span>
-
                 <span class="setting-toggle-text">
-                  Verhindert versehentliches Löschen einer Bestellung.
+                  Verhindert, dass ein Bon versehentlich gelöscht wird.
                 </span>
               </span>
 
@@ -2383,417 +2488,343 @@ const Admin = {
           </div>
         </section>
 
-        <section class="card settings-card">
-          <div class="card-head">
+        <!-- Sicherheit -->
+        <section
+          class="settings-section hidden"
+          data-settings-panel="security"
+        >
+          <div class="settings-page-head">
             <div>
-              <span class="card-title">Sicherheit</span>
-              <p class="settings-description">
-                Einstellungen für automatische Sitzungen.
+              <span class="settings-page-kicker">Sicherheit</span>
+              <h2>Sitzung verwalten</h2>
+              <p>
+                Schütze die Kasse durch eine automatische Abmeldung.
               </p>
             </div>
+
+            <div class="settings-section-icon">◉</div>
           </div>
 
-          <div class="settings-form">
-            <div class="field">
-              <label for="set-session">
-                Automatische Abmeldung
-              </label>
-
-              <select class="select" id="set-session">
-                <option
-                  value="15"
-                  ${
-                    validSession === 15
-                      ? "selected"
-                      : ""
-                  }
-                >
-                  Nach 15 Minuten
-                </option>
-
-                <option
-                  value="30"
-                  ${
-                    validSession === 30
-                      ? "selected"
-                      : ""
-                  }
-                >
-                  Nach 30 Minuten
-                </option>
-
-                <option
-                  value="60"
-                  ${
-                    validSession === 60
-                      ? "selected"
-                      : ""
-                  }
-                >
-                  Nach 60 Minuten
-                </option>
-
-                <option
-                  value="120"
-                  ${
-                    validSession === 120
-                      ? "selected"
-                      : ""
-                  }
-                >
-                  Nach 120 Minuten
-                </option>
-              </select>
+          <div class="settings-content-card">
+            <div class="settings-content-card-head">
+              <div>
+                <strong>Automatische Abmeldung</strong>
+                <span>Bei Inaktivität wird die aktuelle Sitzung beendet</span>
+              </div>
             </div>
+
+            <div class="session-choice-grid">
+              ${[15, 30, 60, 120]
+                .map(
+                  (minutes) => `
+                    <button
+                      class="session-choice ${
+                        validSession === minutes ? "is-selected" : ""
+                      }"
+                      type="button"
+                      data-session-choice="${minutes}"
+                      aria-pressed="${validSession === minutes}"
+                    >
+                      <strong>${minutes}</strong>
+                      <span>Minuten</span>
+                    </button>
+                  `,
+                )
+                .join("")}
+            </div>
+
+            <input
+              id="set-session"
+              type="hidden"
+              value="${validSession}"
+            />
 
             <div class="settings-info">
               <span class="settings-info-icon">i</span>
-
               <span>
-                Die Sitzung wird nach der gewählten Zeit beendet.
+                Die Kasse wird nach der gewählten Zeit automatisch abgemeldet.
                 Eine aktive Schicht wird dabei automatisch beendet.
               </span>
             </div>
           </div>
         </section>
-      </div>
+      </section>
+    </div>
 
-      <div class="settings-actions">
-        <span
-          class="muted"
-          id="settings-status"
-        ></span>
+    <div class="settings-actions settings-actions-v2">
+      <span class="muted" id="settings-status">
+        Noch nicht gespeichert
+      </span>
 
-        <button
-          class="btn btn-primary"
-          id="set-save"
-          type="button"
-        >
-          Änderungen speichern
-        </button>
-      </div>
-    `;
-
-    let selectedAccent = validPreset;
-
-    const paintAccentSelection = () => {
-      $$("#admin-body [data-accent-option]").forEach(
-        (button) => {
-          const selected =
-            button.dataset.accentOption ===
-            selectedAccent;
-
-          button.classList.toggle(
-            "is-selected",
-            selected,
-          );
-
-          button.setAttribute(
-            "aria-pressed",
-            String(selected),
-          );
-        },
-      );
-    };
-
-    $$("#admin-body [data-accent-option]").forEach(
-      (button) => {
-        button.addEventListener("click", () => {
-          selectedAccent =
-            button.dataset.accentOption;
-
-          const preset =
-            window.ACCENT_PRESETS?.[selectedAccent];
-
-          if (preset) {
-            const primaryColor =
-              $("#set-primary-color");
-
-            const accentColor =
-              $("#set-accent-color");
-
-            if (primaryColor) {
-              primaryColor.value = preset.primary;
-            }
-
-            if (accentColor) {
-              accentColor.value = preset.accent;
-            }
-          }
-
-          paintAccentSelection();
-        });
-      },
-    );
-
-    $("#set-save")?.addEventListener(
-      "click",
-      async () => {
-        const saveButton = $("#set-save");
-        const status = $("#settings-status");
-
-        const businessName =
-          $("#set-name")?.value.trim() ||
-          "Masora Döner";
-
-        const businessSubtitle =
-          $("#set-subtitle")?.value.trim() ||
-          "Kassensystem";
-
-        const logoUrl =
-          $("#set-logo")?.value.trim() || null;
-
-        const themeMode =
-          $("#set-theme")?.value || "dark";
-
-        const primaryColor =
-          $("#set-primary-color")?.value ||
-          "#e95420";
-
-        const accentColor =
-          $("#set-accent-color")?.value ||
-          "#e35d6a";
-
-        const compactMode =
-          Boolean($("#set-compact")?.checked);
-
-        const defaultPayment =
-          $("#set-payment")?.value === "card"
-            ? "card"
-            : "cash";
-
-        const showVat =
-          Boolean($("#set-vat")?.checked);
-
-        const autoPrintReceipt =
-          Boolean($("#set-print")?.checked);
-
-        const confirmCartClear =
-          Boolean($("#set-confirm-clear")?.checked);
-
-        const sessionTimeout =
-          Number($("#set-session")?.value) || 30;
-
-        try {
-          if (saveButton) {
-            saveButton.disabled = true;
-            saveButton.textContent = "Speichert …";
-          }
-
-          const saved =
-            await DB.updateSettings({
-              business_name: businessName,
-              business_subtitle: businessSubtitle,
-              logo_url: logoUrl,
-              theme_mode: themeMode,
-              accent_preset: selectedAccent,
-              primary_color: primaryColor,
-              accent_color: accentColor,
-              compact_mode: compactMode,
-              default_payment: defaultPayment,
-              show_vat: showVat,
-              auto_print_receipt: autoPrintReceipt,
-              confirm_cart_clear: confirmCartClear,
-              session_timeout_minutes: sessionTimeout,
-            });
-
-          State.settings = {
-            ...(window.DEFAULT_SETTINGS || {}),
-            ...saved,
-          };
-
-          if (
-            window.App &&
-            typeof App.applySettings === "function"
-          ) {
-            App.applySettings();
-          } else {
-            App.paintBrand?.();
-            App.paintTheme?.();
-            App.paintLogo?.();
-          }
-
-          if (Duty?.isOn?.()) {
-            Duty.startSession();
-          }
-
-          if (status) {
-            status.textContent =
-              "Änderungen gespeichert";
-          }
-
-          toast("Personalisierung gespeichert");
-        } catch (error) {
-          fail(error);
-
-          if (status) {
-            status.textContent =
-              "Speichern fehlgeschlagen";
-          }
-        } finally {
-          if (saveButton) {
-            saveButton.disabled = false;
-            saveButton.textContent =
-              "Änderungen speichern";
-          }
-        }
-      },
-    );
-
-    paintAccentSelection();
-  },
-  /* ------------------------------------------------------------------------
-     Tagesabschluss
-     ------------------------------------------------------------------------ */
-
-  renderClosing(orders) {
-    const validOrders = orders.filter(
-      (order) =>
-        order.status !== "storniert",
-    );
-
-    const revenue = validOrders.reduce(
-      (total, order) =>
-        total + (Number(order.total) || 0),
-      0,
-    );
-
-    const cash = validOrders
-      .filter(
-        (order) =>
-          order.payment_method === "bar",
-      )
-      .reduce(
-        (total, order) =>
-          total + (Number(order.total) || 0),
-        0,
-      );
-
-    const card = validOrders
-      .filter(
-        (order) =>
-          order.payment_method === "karte",
-      )
-      .reduce(
-        (total, order) =>
-          total + (Number(order.total) || 0),
-        0,
-      );
-
-    const sortedOrders = [
-      ...validOrders,
-    ].sort(
-      (a, b) =>
-        new Date(b.created_at) -
-        new Date(a.created_at),
-    );
-
-    let html = `
-      <div
-        class="stats"
-        style="margin-bottom:var(--space-6)"
+      <button
+        class="btn btn-primary"
+        id="set-save"
+        type="button"
       >
-        <div class="stat accent">
-          <div class="stat-label">
-            Umsatz heute
-          </div>
-          <div class="stat-value">
-            ${money(revenue)}
-          </div>
-        </div>
+        Änderungen speichern
+      </button>
+    </div>
+  `;
 
-        <div class="stat">
-          <div class="stat-label">Bar</div>
-          <div class="stat-value">
-            ${money(cash)}
-          </div>
-        </div>
+  let selectedAccent = validPreset;
 
-        <div class="stat">
-          <div class="stat-label">Karte</div>
-          <div class="stat-value">
-            ${money(card)}
-          </div>
-        </div>
+  const setActiveSection = (sectionId) => {
+    $$("#admin-body [data-settings-section]").forEach((button) => {
+      const isActive = button.dataset.settingsSection === sectionId;
 
-        <div class="stat">
-          <div class="stat-label">
-            Bestellungen
-          </div>
-          <div class="stat-value">
-            ${validOrders.length}
-          </div>
-        </div>
-      </div>
+      button.setAttribute("aria-current", String(isActive));
+    });
 
-      <div class="card">
-        <div class="card-head">
-          <span class="card-title">
-            Bestellungen heute
-          </span>
-        </div>
+    $$("#admin-body [data-settings-panel]").forEach((panel) => {
+      panel.classList.toggle(
+        "hidden",
+        panel.dataset.settingsPanel !== sectionId,
+      );
+    });
+  };
 
-        <div class="table-wrap">
-          <table class="data">
-            <thead>
-              <tr>
-                <th>Zeit</th>
-                <th>Summe</th>
-                <th>Zahlung</th>
-                <th>Status</th>
-              </tr>
-            </thead>
+  const paintAccentSelection = () => {
+    $$("#admin-body [data-accent-option]").forEach((button) => {
+      const isSelected =
+        button.dataset.accentOption === selectedAccent;
 
-            <tbody>
-    `;
+      button.classList.toggle("is-selected", isSelected);
+      button.setAttribute("aria-pressed", String(isSelected));
+    });
+  };
 
-    for (const order of sortedOrders) {
-      html += `
-        <tr>
-          <td>${fmtTime(order.created_at)}</td>
-          <td class="num">
-            ${money(order.total)}
-          </td>
-          <td>
-            ${
-              order.payment_method === "bar"
-                ? "Bar"
-                : "Karte"
-            }
-          </td>
-          <td>✅</td>
-        </tr>
-      `;
+  const paintThemeSelection = () => {
+    const selectedTheme = $("#set-theme")?.value || "dark";
+
+    $$("#admin-body [data-theme-choice]").forEach((button) => {
+      const isSelected =
+        button.dataset.themeChoice === selectedTheme;
+
+      button.classList.toggle("is-selected", isSelected);
+      button.setAttribute("aria-pressed", String(isSelected));
+    });
+  };
+
+  const paintPaymentSelection = () => {
+    const selectedPayment = $("#set-payment")?.value || "cash";
+
+    $$("#admin-body [data-payment-choice]").forEach((button) => {
+      const isSelected =
+        button.dataset.paymentChoice === selectedPayment;
+
+      button.classList.toggle("is-selected", isSelected);
+      button.setAttribute("aria-pressed", String(isSelected));
+    });
+  };
+
+  const paintSessionSelection = () => {
+    const selectedSession = Number($("#set-session")?.value || 30);
+
+    $$("#admin-body [data-session-choice]").forEach((button) => {
+      const isSelected =
+        Number(button.dataset.sessionChoice) === selectedSession;
+
+      button.classList.toggle("is-selected", isSelected);
+      button.setAttribute("aria-pressed", String(isSelected));
+    });
+  };
+
+  const updateBrandPreview = () => {
+    const name =
+      $("#set-name")?.value.trim() || "Masora Döner";
+
+    const subtitle =
+      $("#set-subtitle")?.value.trim() || "Kassensystem";
+
+    $("#preview-business-name").textContent = name;
+    $("#preview-business-subtitle").textContent = subtitle;
+  };
+
+  const updateColorPreview = () => {
+    const primary =
+      $("#set-primary-color")?.value || "#e95420";
+
+    const accent =
+      $("#set-accent-color")?.value || "#e35d6a";
+
+    const preview = $("#color-preview");
+
+    if (!preview) {
+      return;
     }
 
-    html += `
-            </tbody>
-          </table>
-        </div>
-      </div>
-    `;
+    preview.style.setProperty("--preview-primary", primary);
+    preview.style.setProperty("--preview-accent", accent);
+  };
 
-    $("#admin-body").innerHTML = html;
-  },
+  $$("#admin-body [data-settings-section]").forEach((button) => {
+    button.addEventListener("click", () => {
+      setActiveSection(button.dataset.settingsSection);
+    });
+  });
 
-  bind() {
-    $("#admin-subnav")?.addEventListener(
-      "click",
-      (event) => {
-        const button = event.target.closest(
-          "button[data-tab]",
-        );
+  $$("#admin-body [data-theme-choice]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const input = $("#set-theme");
 
-        if (!button || button.classList.contains("hidden")) {
-          return;
+      if (input) {
+        input.value = button.dataset.themeChoice;
+      }
+
+      paintThemeSelection();
+    });
+  });
+
+  $$("#admin-body [data-payment-choice]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const input = $("#set-payment");
+
+      if (input) {
+        input.value = button.dataset.paymentChoice;
+      }
+
+      paintPaymentSelection();
+    });
+  });
+
+  $$("#admin-body [data-session-choice]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const input = $("#set-session");
+
+      if (input) {
+        input.value = button.dataset.sessionChoice;
+      }
+
+      paintSessionSelection();
+    });
+  });
+
+  $$("#admin-body [data-accent-option]").forEach((button) => {
+    button.addEventListener("click", () => {
+      selectedAccent = button.dataset.accentOption;
+
+      const preset = window.ACCENT_PRESETS?.[selectedAccent];
+
+      if (preset) {
+        const primaryColor = $("#set-primary-color");
+        const accentColor = $("#set-accent-color");
+
+        if (primaryColor) {
+          primaryColor.value = preset.primary;
         }
 
-        this.tab = button.dataset.tab;
-        this.paintTabs();
-        this.loadTab();
-      },
-    );
-  },
-};
+        if (accentColor) {
+          accentColor.value = preset.accent;
+        }
+      }
 
-window.Admin = Admin;
+      paintAccentSelection();
+      updateColorPreview();
+    });
+  });
+
+  $("#set-name")?.addEventListener("input", updateBrandPreview);
+  $("#set-subtitle")?.addEventListener("input", updateBrandPreview);
+  $("#set-primary-color")?.addEventListener("input", updateColorPreview);
+  $("#set-accent-color")?.addEventListener("input", updateColorPreview);
+
+  $("#set-save")?.addEventListener("click", async () => {
+    const saveButton = $("#set-save");
+    const status = $("#settings-status");
+
+    const businessName =
+      $("#set-name")?.value.trim() || "Masora Döner";
+
+    const businessSubtitle =
+      $("#set-subtitle")?.value.trim() || "Kassensystem";
+
+    const logoUrl = $("#set-logo")?.value.trim() || null;
+    const themeMode = $("#set-theme")?.value || "dark";
+    const primaryColor =
+      $("#set-primary-color")?.value || "#e95420";
+    const accentColor =
+      $("#set-accent-color")?.value || "#e35d6a";
+
+    const compactMode = Boolean($("#set-compact")?.checked);
+    const defaultPayment =
+      $("#set-payment")?.value === "card" ? "card" : "cash";
+
+    const showVat = Boolean($("#set-vat")?.checked);
+    const autoPrintReceipt = Boolean($("#set-print")?.checked);
+    const confirmCartClear = Boolean(
+      $("#set-confirm-clear")?.checked,
+    );
+
+    const sessionTimeout =
+      Number($("#set-session")?.value) || 30;
+
+    try {
+      if (saveButton) {
+        saveButton.disabled = true;
+        saveButton.textContent = "Speichert …";
+      }
+
+      if (status) {
+        status.textContent = "Änderungen werden gespeichert …";
+      }
+
+      const saved = await DB.updateSettings({
+        business_name: businessName,
+        business_subtitle: businessSubtitle,
+        logo_url: logoUrl,
+        theme_mode: themeMode,
+        accent_preset: selectedAccent,
+        primary_color: primaryColor,
+        accent_color: accentColor,
+        compact_mode: compactMode,
+        default_payment: defaultPayment,
+        show_vat: showVat,
+        auto_print_receipt: autoPrintReceipt,
+        confirm_cart_clear: confirmCartClear,
+        session_timeout_minutes: sessionTimeout,
+      });
+
+      State.settings = {
+        ...(window.DEFAULT_SETTINGS || {}),
+        ...saved,
+      };
+
+      if (window.App && typeof App.applySettings === "function") {
+        App.applySettings();
+      } else {
+        App.paintBrand?.();
+        App.paintTheme?.();
+        App.paintLogo?.();
+      }
+
+      if (Duty?.isOn?.()) {
+        Duty.startSession();
+      }
+
+      if (status) {
+        status.textContent = "Änderungen gespeichert";
+      }
+
+      toast("Einstellungen gespeichert");
+    } catch (error) {
+      fail(error);
+
+      if (status) {
+        status.textContent = "Speichern fehlgeschlagen";
+      }
+    } finally {
+      if (saveButton) {
+        saveButton.disabled = false;
+        saveButton.textContent = "Änderungen speichern";
+      }
+    }
+  });
+
+  setActiveSection("business");
+  paintAccentSelection();
+  paintThemeSelection();
+  paintPaymentSelection();
+  paintSessionSelection();
+  updateBrandPreview();
+  updateColorPreview();
+},
