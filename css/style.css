@@ -1871,3 +1871,159 @@ body.modal-open {
     font-size: 32px !important;
   }
 }
+/* ==========================================================
+   V2 – DYNAMISCHER HINTERGRUND NACH PRIMÄRFARBE
+   Der Hintergrund reagiert auf --primary aus Einstellungen.
+   ========================================================== */
+
+/* Heller Modus: sehr helle Tönung deiner Markenfarbe */
+html[data-theme="light"] {
+  --v2-page-base: color-mix(
+    in oklab,
+    var(--primary) 5%,
+    #f8fafc
+  );
+
+  --v2-page-glow: color-mix(
+    in oklab,
+    var(--primary) 18%,
+    transparent
+  );
+
+  --v2-surface-tint: color-mix(
+    in oklab,
+    var(--primary) 3%,
+    #ffffff
+  );
+
+  --v2-border-tint: color-mix(
+    in oklab,
+    var(--primary) 14%,
+    #dce3ed
+  );
+
+  --v2-sidebar-base: color-mix(
+    in oklab,
+    var(--primary) 25%,
+    #101827
+  );
+
+  --v2-sidebar-soft: color-mix(
+    in oklab,
+    var(--primary) 19%,
+    #1e293b
+  );
+}
+
+/* Dunkler Modus: dunkle Flächen erhalten einen Markenfarb-Stich */
+html[data-theme="dark"] {
+  --v2-page-base: color-mix(
+    in oklab,
+    var(--primary) 9%,
+    #0b1321
+  );
+
+  --v2-page-glow: color-mix(
+    in oklab,
+    var(--primary) 25%,
+    transparent
+  );
+
+  --v2-surface-tint: color-mix(
+    in oklab,
+    var(--primary) 10%,
+    #172234
+  );
+
+  --v2-border-tint: color-mix(
+    in oklab,
+    var(--primary) 18%,
+    #2b3a50
+  );
+
+  --v2-sidebar-base: color-mix(
+    in oklab,
+    var(--primary) 17%,
+    #07101c
+  );
+
+  --v2-sidebar-soft: color-mix(
+    in oklab,
+    var(--primary) 14%,
+    #132033
+  );
+}
+
+/* Fallback, falls noch kein Theme-Attribut gesetzt wurde */
+:root {
+  --v2-page-base: color-mix(
+    in oklab,
+    var(--primary) 9%,
+    #0b1321
+  );
+
+  --v2-page-glow: color-mix(
+    in oklab,
+    var(--primary) 25%,
+    transparent
+  );
+
+  --v2-surface-tint: color-mix(
+    in oklab,
+    var(--primary) 10%,
+    #172234
+  );
+
+  --v2-border-tint: color-mix(
+    in oklab,
+    var(--primary) 18%,
+    #2b3a50
+  );
+
+  --v2-sidebar-base: color-mix(
+    in oklab,
+    var(--primary) 17%,
+    #07101c
+  );
+
+  --v2-sidebar-soft: color-mix(
+    in oklab,
+    var(--primary) 14%,
+    #132033
+  );
+}
+
+/* Gesamter App-Hintergrund */
+html,
+body {
+  background: var(--v2-page-base) !important;
+}
+
+body {
+  background:
+    radial-gradient(
+      circle at 88% 2%,
+      var(--v2-page-glow) 0%,
+      transparent 31%
+    ),
+    radial-gradient(
+      circle at 18% 100%,
+      color-mix(
+        in oklab,
+        var(--primary) 10%,
+        transparent
+      ) 0%,
+      transparent 36%
+    ),
+    var(--v2-page-base) !important;
+}
+
+/* Hauptbereich übernimmt die dezente Markenfarbe */
+.app,
+.app-content,
+.main {
+  background: transparent !important;
+}
+
+/* Sidebar passend zur Primärfarbe einfärben */
+.sidebar {
