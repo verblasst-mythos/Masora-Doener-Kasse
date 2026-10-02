@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Kasse V2</title>
+  <meta name="theme-color" content="#111827" />
+  <title>KassenSystem V2</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -17,33 +18,34 @@
 
 <body>
   <div class="app-shell">
-    <aside class="sidebar">
+    <aside class="sidebar" id="sidebar">
       <div class="brand">
         <div class="brand-mark">K</div>
-        <div>
+
+        <div class="brand-copy">
           <strong>KassenSystem</strong>
           <span>V2 · Restaurant</span>
         </div>
       </div>
 
       <nav class="main-nav" aria-label="Hauptnavigation">
-        <button class="nav-item active" type="button">
-          <span class="nav-icon">⌑</span>
+        <button class="nav-item active" type="button" data-view="pos">
+          <span class="nav-icon">⌂</span>
           <span>Kasse</span>
         </button>
 
-        <button class="nav-item" type="button">
+        <button class="nav-item" type="button" data-view="open-orders">
           <span class="nav-icon">◫</span>
           <span>Offene Bons</span>
-          <span class="nav-badge">3</span>
+          <span class="nav-badge" id="open-orders-badge">0</span>
         </button>
 
-        <button class="nav-item" type="button">
+        <button class="nav-item" type="button" data-view="tables">
           <span class="nav-icon">▦</span>
           <span>Tische</span>
         </button>
 
-        <button class="nav-item" type="button">
+        <button class="nav-item" type="button" data-view="orders">
           <span class="nav-icon">☷</span>
           <span>Bestellungen</span>
         </button>
@@ -51,23 +53,23 @@
 
       <div class="sidebar-section-label">Verwaltung</div>
 
-      <nav class="main-nav">
-        <button class="nav-item" type="button">
+      <nav class="main-nav" aria-label="Verwaltung">
+        <button class="nav-item" type="button" data-view="products">
           <span class="nav-icon">◈</span>
           <span>Artikel</span>
         </button>
 
-        <button class="nav-item" type="button">
+        <button class="nav-item" type="button" data-view="employees">
           <span class="nav-icon">◉</span>
           <span>Mitarbeiter</span>
         </button>
 
-        <button class="nav-item" type="button">
+        <button class="nav-item" type="button" data-view="statistics">
           <span class="nav-icon">▥</span>
           <span>Statistik</span>
         </button>
 
-        <button class="nav-item" type="button">
+        <button class="nav-item" type="button" data-view="settings">
           <span class="nav-icon">⚙</span>
           <span>Einstellungen</span>
         </button>
@@ -76,18 +78,21 @@
       <div class="sidebar-bottom">
         <div class="shift-status">
           <span class="status-dot"></span>
+
           <div>
             <strong>Kasse geöffnet</strong>
             <span>Seit 09:00 Uhr</span>
           </div>
         </div>
 
-        <button class="employee-card" type="button">
+        <button class="employee-card" id="employee-button" type="button">
           <span class="employee-avatar">M</span>
+
           <span class="employee-info">
             <strong>Max Mustermann</strong>
             <small>Mitarbeiter</small>
           </span>
+
           <span class="employee-more">⋮</span>
         </button>
       </div>
@@ -95,107 +100,224 @@
 
     <main class="main-content">
       <header class="topbar">
-        <div>
-          <p class="eyebrow">Kasse</p>
-          <h1>Neue Bestellung</h1>
+        <div class="topbar-heading">
+          <div class="mobile-brand">
+            <div class="brand-mark">K</div>
+          </div>
+
+          <div>
+            <p class="eyebrow" id="page-eyebrow">Kasse</p>
+            <h1 id="page-title">Neue Bestellung</h1>
+          </div>
         </div>
 
         <div class="topbar-actions">
-          <button class="icon-button" type="button" aria-label="Vollbild">
+          <div class="connection-status">
+            <span class="connection-dot"></span>
+            <span>Online</span>
+          </div>
+
+          <button
+            class="icon-button"
+            id="fullscreen-button"
+            type="button"
+            aria-label="Vollbild aktivieren"
+            title="Vollbild"
+          >
             ⛶
           </button>
 
-          <button class="date-button" type="button">
-            <span>▣</span>
-            <span id="current-date"></span>
+          <div class="date-display">
+            <span class="date-icon">▣</span>
+
+            <div>
+              <strong id="current-time">--:--</strong>
+              <span id="current-date">--.--.----</span>
+            </div>
+          </div>
+
+          <button
+            class="mobile-menu-button"
+            id="mobile-menu-button"
+            type="button"
+            aria-label="Menü öffnen"
+          >
+            ☰
           </button>
         </div>
       </header>
 
-      <section class="pos-layout">
-        <div class="product-area">
-          <label class="search-box">
-            <span>⌕</span>
-            <input
-              id="product-search"
-              type="search"
-              placeholder="Artikel suchen …"
-              autocomplete="off"
-            />
-            <kbd>F2</kbd>
-          </label>
+      <div id="view-container">
+        <section class="pos-layout" id="pos-view">
+          <div class="product-area">
+            <div class="welcome-row">
+              <div>
+                <span class="section-kicker">Schnellverkauf</span>
+                <h2>Was möchtest du verkaufen?</h2>
+              </div>
 
-          <div id="category-list" class="category-list"></div>
-
-          <div class="product-toolbar">
-            <div>
-              <h2 id="category-title">Alle Artikel</h2>
-              <p id="product-count">0 Artikel verfügbar</p>
+              <button class="outline-button" id="new-order-button" type="button">
+                <span>＋</span>
+                Neuer Bon
+              </button>
             </div>
 
-            <button id="favorites-button" class="filter-button" type="button">
-              <span>☆</span>
-              Favoriten
-            </button>
+            <label class="search-box">
+              <span class="search-icon">⌕</span>
+
+              <input
+                id="product-search"
+                type="search"
+                placeholder="Artikel, Kategorie oder Nummer suchen …"
+                autocomplete="off"
+              />
+
+              <kbd>F2</kbd>
+            </label>
+
+            <div class="category-list" id="category-list"></div>
+
+            <div class="product-toolbar">
+              <div>
+                <h2 id="category-title">Alle Artikel</h2>
+                <p id="product-count">0 Artikel verfügbar</p>
+              </div>
+
+              <button id="favorites-button" class="filter-button" type="button">
+                <span>☆</span>
+                Favoriten
+              </button>
+            </div>
+
+            <div id="product-grid" class="product-grid"></div>
           </div>
 
-          <div id="product-grid" class="product-grid"></div>
-        </div>
+          <aside class="cart-panel">
+            <div class="cart-header">
+              <div class="cart-heading">
+                <div class="cart-title-row">
+                  <p class="eyebrow">Aktueller Bon</p>
 
-        <aside class="cart-panel">
-          <div class="cart-header">
-            <div>
-              <p class="eyebrow">Aktueller Bon</p>
-              <h2 id="order-title">Außer Haus</h2>
+                  <span class="order-status">Neu</span>
+                </div>
+
+                <button id="order-type-button" class="order-type-button" type="button">
+                  <span id="order-title">Außer Haus</span>
+                  <span>⌄</span>
+                </button>
+
+                <span class="order-number" id="order-number">Bon #1001</span>
+              </div>
+
+              <button
+                id="clear-cart-button"
+                class="text-button danger"
+                type="button"
+              >
+                Leeren
+              </button>
             </div>
 
-            <button id="clear-cart-button" class="text-button danger" type="button">
-              Leeren
-            </button>
-          </div>
+            <div class="cart-options">
+              <button class="cart-option-button" id="customer-button" type="button">
+                <span>♙</span>
+                Kunde hinzufügen
+              </button>
 
-          <div id="cart-items" class="cart-items">
-            <div class="empty-cart">
-              <div class="empty-cart-icon">⌑</div>
-              <h3>Noch keine Artikel</h3>
-              <p>Wähle links einen Artikel aus, um ihn dem Bon hinzuzufügen.</p>
-            </div>
-          </div>
-
-          <div class="cart-summary">
-            <div class="summary-row">
-              <span>Zwischensumme</span>
-              <strong id="subtotal-value">0,00 €</strong>
+              <button class="cart-option-button" id="note-button" type="button">
+                <span>☷</span>
+                Notiz
+              </button>
             </div>
 
-            <div class="summary-row muted">
-              <span>Enthaltene MwSt. (19 %)</span>
-              <span id="tax-value">0,00 €</span>
+            <div id="cart-items" class="cart-items">
+              <div class="empty-cart">
+                <div class="empty-cart-icon">⌑</div>
+                <h3>Noch keine Artikel</h3>
+                <p>Wähle links einen Artikel aus, um ihn dem Bon hinzuzufügen.</p>
+              </div>
             </div>
 
-            <div class="summary-total">
-              <span>Gesamt</span>
-              <strong id="total-value">0,00 €</strong>
+            <div class="cart-summary">
+              <div class="summary-row">
+                <span>Artikel</span>
+                <strong id="item-count-value">0</strong>
+              </div>
+
+              <div class="summary-row">
+                <span>Zwischensumme</span>
+                <strong id="subtotal-value">0,00 €</strong>
+              </div>
+
+              <div class="summary-row muted">
+                <span>Enthaltene MwSt. (19 %)</span>
+                <span id="tax-value">0,00 €</span>
+              </div>
+
+              <div class="summary-total">
+                <span>Gesamt</span>
+                <strong id="total-value">0,00 €</strong>
+              </div>
             </div>
-          </div>
 
-          <div class="cart-actions">
-            <button id="park-order-button" class="secondary-action" type="button">
-              <span>⌁</span>
-              Bon parken
-            </button>
+            <div class="cart-actions">
+              <button id="park-order-button" class="secondary-action" type="button">
+                <span>⌁</span>
+                Bon parken
+              </button>
 
-            <button id="payment-button" class="primary-action" type="button">
-              Bezahlen
-              <span>→</span>
-            </button>
-          </div>
-        </aside>
-      </section>
+              <button id="payment-button" class="primary-action" type="button">
+                <span>Bezahlen</span>
+                <span>→</span>
+              </button>
+            </div>
+          </aside>
+        </section>
+
+        <section class="placeholder-view hidden" id="placeholder-view">
+          <div class="placeholder-icon" id="placeholder-icon">◫</div>
+          <span class="section-kicker" id="placeholder-kicker">Bereich</span>
+          <h2 id="placeholder-title">Dieser Bereich ist vorbereitet</h2>
+          <p id="placeholder-text">
+            Die neue Oberfläche ist vorbereitet. Als Nächstes wird dieser Bereich
+            mit deiner bestehenden Logik verbunden.
+          </p>
+
+          <button class="primary-action placeholder-back-button" id="back-to-pos-button" type="button">
+            Zur Kasse
+            <span>→</span>
+          </button>
+        </section>
+      </div>
     </main>
   </div>
 
-  <div id="toast-container" class="toast-container" aria-live="polite"></div>
+  <div class="modal-backdrop hidden" id="modal-backdrop">
+    <div
+      class="modal"
+      id="modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-title"
+    >
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow" id="modal-eyebrow">Aktion</p>
+          <h2 id="modal-title">Dialog</h2>
+        </div>
+
+        <button class="modal-close" id="modal-close-button" type="button" aria-label="Dialog schließen">
+          ×
+        </button>
+      </div>
+
+      <div class="modal-body" id="modal-body"></div>
+
+      <div class="modal-footer" id="modal-footer"></div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toast-container" aria-live="polite"></div>
 
   <script src="app.js"></script>
 </body>
