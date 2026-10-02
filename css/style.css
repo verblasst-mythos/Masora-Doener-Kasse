@@ -1674,118 +1674,172 @@ html[data-theme="dark"] .duty-banner {
   }
 }
 /* ==========================================================
-   V2: ZAHLUNGSFENSTER – ZENTRIERT, FIXIERT, KEIN SCROLLEN
+   V2: ZAHLUNGSFENSTER – ECHTE KLASSEN AUS app.js
+   app.js erstellt:
+   <div id="modal-overlay" class="overlay payment-overlay">
+     <section class="modal payment-modal">...</section>
+   </div>
    ========================================================== */
 
-/* Sperrt Scrollen der Seite, sobald ein Zahlungsfenster offen ist */
-html:has(.modal-backdrop:not(.hidden)),
-html:has(.modal-overlay:not(.hidden)) {
-  overflow: hidden;
-  overscroll-behavior: none;
+/* Während irgendein Modal offen ist, darf die Seite nicht scrollen */
+html.modal-open,
+body.modal-open {
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
 }
 
-body:has(.modal-backdrop:not(.hidden)),
-body:has(.modal-overlay:not(.hidden)) {
-  height: 100vh;
-  overflow: hidden;
-  overscroll-behavior: none;
-}
-
-/* Der dunkle Hintergrund liegt fest über dem ganzen Bildschirm */
-.modal-backdrop:not(.hidden),
-.modal-overlay:not(.hidden) {
+/* Vollbild-Dunkeloverlay: immer über der gesamten Kasse */
+#modal-overlay.overlay.payment-overlay {
   position: fixed !important;
   inset: 0 !important;
-  z-index: 9999 !important;
+  z-index: 2147483647 !important;
 
   display: grid !important;
   place-items: center !important;
 
+  width: 100vw !important;
+  height: 100dvh !important;
+  min-height: 100vh !important;
+
+  margin: 0 !important;
+  padding: 22px !important;
+
   overflow: hidden !important;
   overscroll-behavior: none !important;
 
-  padding: 22px !important;
-  background: rgba(5, 12, 24, 0.78) !important;
-  backdrop-filter: blur(8px);
+  background: rgba(3, 9, 20, 0.82) !important;
+  backdrop-filter: blur(9px) !important;
 }
 
-/* Das eigentliche Zahlungsfenster im Zentrum */
-.modal-backdrop:not(.hidden) .modal,
-.modal-overlay:not(.hidden) .modal,
-.modal-overlay:not(.hidden) .dialog,
-.modal-backdrop:not(.hidden) [role="dialog"],
-.modal-overlay:not(.hidden) [role="dialog"] {
+/* Zahlungs- bzw. Dialogfenster exakt zentriert */
+#modal-overlay.overlay.payment-overlay > .modal.payment-modal {
   position: relative !important;
 
-  width: min(100%, 500px) !important;
-  max-height: calc(100vh - 44px) !important;
+  display: flex !important;
+  width: min(100%, 510px) !important;
+  max-width: 510px !important;
+  max-height: calc(100dvh - 44px) !important;
+  flex-direction: column !important;
 
   margin: 0 !important;
   overflow: hidden !important;
 
   border: 1px solid var(--border) !important;
-  border-radius: 20px !important;
+  border-radius: 22px !important;
+  color: var(--text) !important;
   background: var(--surface) !important;
-  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.42) !important;
+  box-shadow: 0 34px 110px rgba(0, 0, 0, 0.5) !important;
 
-  animation: payment-modal-in 0.2s ease-out;
+  animation: v2-payment-dialog-enter 0.2s ease-out;
 }
 
-/* Kein Scrollbalken im Zahlungsfenster */
-.modal-backdrop:not(.hidden) .modal-body,
-.modal-overlay:not(.hidden) .modal-body,
-.modal-overlay:not(.hidden) .dialog-body {
-  max-height: none !important;
+/* Titelzeile */
+#modal-overlay .payment-modal-head {
+  display: flex !important;
+  flex: 0 0 auto !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 14px !important;
+
+  padding: 21px 22px 17px !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+
+#modal-overlay .payment-modal-head .modal-title {
+  margin: 0 !important;
+  color: var(--text) !important;
+  font-size: 20px !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.035em !important;
+}
+
+/* X-Schaltfläche */
+#modal-overlay .payment-modal-close {
+  display: grid !important;
+  flex: 0 0 auto !important;
+  width: 34px !important;
+  height: 34px !important;
+  min-height: 34px !important;
+  place-items: center !important;
+
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 9px !important;
+  color: var(--muted) !important;
+  background: var(--bg-soft) !important;
+  box-shadow: none !important;
+}
+
+#modal-overlay .payment-modal-close:hover {
+  color: var(--danger) !important;
+  background: var(--danger-soft) !important;
+}
+
+/* Dialoginhalt: kein Scrollen */
+#modal-overlay .payment-modal-body {
+  flex: 1 1 auto !important;
   overflow: hidden !important;
+  padding: 22px !important;
 }
 
-/* Zahlungsinhalt etwas größer und klarer */
-.modal-backdrop:not(.hidden) .pay-total,
-.modal-overlay:not(.hidden) .pay-total {
-  padding: 22px !important;
+/* Unterer Buttonbereich */
+#modal-overlay .payment-modal-foot {
+  display: flex !important;
+  flex: 0 0 auto !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 9px !important;
+
+  padding: 15px 22px !important;
+  border-top: 1px solid var(--border) !important;
+  background: var(--bg-soft) !important;
+}
+
+/* Betrag oben im Zahlungsdialog */
+#modal-overlay .pay-total {
+  margin-bottom: 19px !important;
+  padding: 23px !important;
+  border: 1px solid color-mix(in srgb, var(--primary) 20%, var(--border)) !important;
   border-radius: 15px !important;
 }
 
-.modal-backdrop:not(.hidden) .pay-total-value,
-.modal-overlay:not(.hidden) .pay-total-value {
-  font-size: 36px !important;
+#modal-overlay .pay-total-value {
+  font-size: 37px !important;
 }
 
-/* Kartenzahlung: klare Informationsbox mittig */
-.modal-backdrop:not(.hidden) .pay-total + .muted,
-.modal-overlay:not(.hidden) .pay-total + .muted {
-  margin: 18px 0 4px !important;
-  padding: 15px !important;
+/* Karte: Hinweisbox direkt unter dem Betrag */
+#modal-overlay .pay-total + .muted {
+  margin: 0 !important;
+  padding: 17px !important;
   border: 1px solid var(--border) !important;
   border-radius: 12px !important;
   color: var(--text) !important;
-  line-height: 1.55 !important;
+  font-size: 12px !important;
+  line-height: 1.6 !important;
   text-align: center !important;
   background: var(--bg-soft) !important;
 }
 
-/* Footer bleibt unten sauber und ohne Scrollen */
-.modal-backdrop:not(.hidden) .modal-foot,
-.modal-backdrop:not(.hidden) .modal-footer,
-.modal-overlay:not(.hidden) .modal-foot,
-.modal-overlay:not(.hidden) .modal-footer,
-.modal-overlay:not(.hidden) .dialog-foot {
-  flex: 0 0 auto !important;
-  padding: 15px 21px !important;
+/* Großer Button zum Abschließen */
+#modal-overlay #confirm-pay {
+  min-width: 145px !important;
+  min-height: 44px !important;
 }
 
-/* Große Abschluss-Schaltfläche */
-.modal-backdrop:not(.hidden) #confirm-pay,
-.modal-overlay:not(.hidden) #confirm-pay {
-  min-width: 145px;
-  min-height: 44px;
+/* Barzahlung: Schnellbeträge und Rückgeld */
+#modal-overlay .quick-cash {
+  margin-top: 12px !important;
 }
 
-/* Öffnungsanimation */
-@keyframes payment-modal-in {
+#modal-overlay .change-box {
+  margin-top: 15px !important;
+}
+
+/* Einblend-Animation */
+@keyframes v2-payment-dialog-enter {
   from {
     opacity: 0;
-    transform: translateY(14px) scale(0.975);
+    transform: translateY(16px) scale(0.975);
   }
 
   to {
@@ -1794,24 +1848,26 @@ body:has(.modal-overlay:not(.hidden)) {
   }
 }
 
-/* Kleine Displays */
+/* Handy */
 @media (max-width: 540px) {
-  .modal-backdrop:not(.hidden),
-  .modal-overlay:not(.hidden) {
-    padding: 15px !important;
+  #modal-overlay.overlay.payment-overlay {
+    padding: 14px !important;
   }
 
-  .modal-backdrop:not(.hidden) .modal,
-  .modal-overlay:not(.hidden) .modal,
-  .modal-overlay:not(.hidden) .dialog,
-  .modal-backdrop:not(.hidden) [role="dialog"],
-  .modal-overlay:not(.hidden) [role="dialog"] {
+  #modal-overlay.overlay.payment-overlay > .modal.payment-modal {
     width: 100% !important;
-    border-radius: 16px !important;
+    max-width: none !important;
+    border-radius: 17px !important;
   }
 
-  .modal-backdrop:not(.hidden) .pay-total-value,
-  .modal-overlay:not(.hidden) .pay-total-value {
-    font-size: 31px !important;
+  #modal-overlay .payment-modal-head,
+  #modal-overlay .payment-modal-body,
+  #modal-overlay .payment-modal-foot {
+    padding-right: 16px !important;
+    padding-left: 16px !important;
+  }
+
+  #modal-overlay .pay-total-value {
+    font-size: 32px !important;
   }
 }
